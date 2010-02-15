@@ -42,11 +42,12 @@ MATH_INSERT =+i4m
 # -nm=<file>    set module name
 # -nt=<id>      set name of text segment
 #
+# -bt=DOS       force executable as DOS (prevents compile issues when building on NT)
 
 ALLCFLAGS=-I$(INCLUDEPATH) $(CPUOPT)$(ALLCFLAGS)
 INITCFLAGS=@wci.cfg
 CFLAGS    =@wc.cfg
 
-CFLAGST=-I..\hdr;$(INCLUDEPATH) -e3-we-wx-zq-os-s-zp1-mt
-CFLAGSC=-I..\hdr;$(INCLUDEPATH) -e3-we-wx-zq-os-s-zp1-mc
+CFLAGST=-I..\hdr;$(INCLUDEPATH) -e3-we-wx-zq-os-s-zp1-mt-bt=DOS
+CFLAGSC=-I..\hdr;$(INCLUDEPATH) -e3-we-wx-zq-os-s-zp1-mc-bt=DOS
 

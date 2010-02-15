@@ -1,8 +1,6 @@
 #
 # makefile for DOS-C boot
 #
-# $Id: makefile,v 1.1 2009-07-10 14:59:02 perditionc Exp $
-#
 
 !include "../mkfiles/generic.mak"
 

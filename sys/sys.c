@@ -26,13 +26,13 @@
 
 ***************************************************************/
 
-#define DEBUG           /* to display extra information */
-/* #define DDEBUG */    /* to enable display of sector dumps */
-#define WITHOEMCOMPATBS /* include support for OEM MS/PC DOS 3.??-6.x */
-#define FDCONFIG        /* include support to configure FD kernel */
-/* #define DRSYS */     /* SYS for Enhanced DR-DOS (OpenDOS enhancement Project) */
+/* #define DEBUG */           /* to display extra information */
+/* #define DDEBUG */          /* to enable display of sector dumps */
+/* #define WITHOEMCOMPATBS */ /* include support for OEM MS/PC DOS 3.??-6.x */
+#define FDCONFIG              /* include support to configure FD kernel */
+/* #define DRSYS */           /* SYS for Enhanced DR-DOS (OpenDOS enhancement Project) */
 
-#define SYS_VERSION "v3.6b"
+#define SYS_VERSION "v3.6c"
 #define SYS_NAME "FreeDOS System Installer "
 
 
@@ -75,8 +75,8 @@
  * #including <stdio.h> to make executable MUCH smaller
  * using [s]printf from prf.c!
  */
-extern int VA_CDECL printf(const char FAR * fmt, ...);
-extern int VA_CDECL sprintf(char FAR * buff, const char FAR * fmt, ...);
+extern int VA_CDECL printf(CONST char FAR * fmt, ...);
+extern int VA_CDECL sprintf(char FAR * buff, CONST char FAR * fmt, ...);
 
 #include "fat12com.h"
 #include "fat16com.h"
@@ -200,6 +200,7 @@ char *getenv(const char *name)
   return NULL;
 }
 #endif
+
 
 BYTE pgm[] = "SYS";
 
@@ -333,6 +334,7 @@ DOSBootFiles bootFiles[] = {
 #define OEM_PC     3  /* use PC-DOS compatible boot sector and names */ 
 #define OEM_MS     4  /* use PC-DOS compatible BS with MS names */
 #define OEM_W9x    5  /* use PC-DOS compatible BS with MS names */
+#define OEM_RX     6  /* use PC-DOS compatible BS with Rx names */
 #endif
 
 CONST char * msgDOS[DOSFLAVORS] = {  /* order should match above items */
@@ -348,6 +350,7 @@ CONST char * msgDOS[DOSFLAVORS] = {  /* order should match above items */
   "PC-DOS compatibility mode\n",
   "MS-DOS compatibility mode\n",
   "Win9x DOS compatibility mode\n",
+  "RxDOS compatibility mode\n",
 #endif
 };
 
@@ -484,6 +487,8 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
             opts->flavor = OEM_MS;
           else if (memicmp(argp, "W9", 2) == 0)
             opts->flavor = OEM_W9x;
+          else if (memicmp(argp, "RX", 2) == 0)
+            opts->flavor = OEM_RX;
 #endif
           else if (memicmp(argp, "FD", 2) == 0)
             opts->flavor = OEM_FD;
@@ -604,10 +609,12 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
   sprintf(opts->srcDrive, "%c:", 'A' + getcurdrive());
   if (srcarg)
   {
-        int slen;
+    int slen;
     /* set source path, reserving room to append filename */
-    if ( (argv[srcarg][1] == ':') /* || ((argv[srcarg][0]=='\\') && (argv[srcarg][1] == '\\'))*/ ) 
+    if ( (argv[srcarg][1] == ':') || ((argv[srcarg][0]=='\\') && (argv[srcarg][1] == '\\')) ) 
       strncpy(opts->srcDrive, argv[srcarg], SYS_MAXPATH-13);
+    else if (argv[srcarg][1] == '\0') /* assume 1 char is drive not path specifier */
+      sprintf(opts->srcDrive, "%c:", toupper(*(argv[srcarg])));
     else /* only path provided, append to default drive */
       strncat(opts->srcDrive, argv[srcarg], SYS_MAXPATH-15);
     slen = strlen(opts->srcDrive);
@@ -1231,8 +1238,8 @@ void put_boot(SYSOptions *opts)
   struct bootsectortype32 *bs32;
 #endif
   struct bootsectortype *bs;
-  static unsigned char oldboot[SEC_SIZE], newboot[SEC_SIZE];
-  static unsigned char default_bpb[0x5c];
+  UBYTE oldboot[SEC_SIZE], newboot[SEC_SIZE];
+  UBYTE default_bpb[0x5c];
   int bsBiosMovOff;  /* offset in bs to mov [drive],dl that we NOP out */
 
 #ifdef DEBUG
@@ -1359,7 +1366,9 @@ void put_boot(SYSOptions *opts)
   bs = (struct bootsectortype *)&newboot;
 
   /* originally OemName was "FreeDOS", changed for better compatibility */
-  memcpy(bs->OemName, "FRDOS4.1", 8);
+  memcpy(bs->OemName, "FRDOS5.1", 8); /* Win9x seems to require
+                                         5 uppercase letters,
+                                         digit(4 or 5) dot digit */
 
 #ifdef WITHFAT32
   if (fs == FAT32)
@@ -1504,7 +1513,7 @@ void put_boot(SYSOptions *opts)
   if (opts->writeBS)
   {
 #ifdef DEBUG
-    printf("writing new bootsector to drive %c:\n", opts->dstDrive + 'A');
+    printf("Writing new bootsector to drive %c:\n", opts->dstDrive + 'A');
 #endif
 
     /* write newboot to a drive */
@@ -1584,6 +1593,26 @@ BOOL check_space(COUNT drive, ULONG bytes)
 
 BYTE copybuffer[COPY_SIZE];
 
+/* allocate memory from DOS, return 0 on success, nonzero otherwise */
+int alloc_dos_mem(ULONG memsize, UWORD *theseg)
+{
+  unsigned dseg;
+#ifdef __TURBOC__
+  if (allocmem((unsigned)((memsize+15)>>4), &dseg)!=-1)
+#else
+  if (_dos_allocmem((unsigned)((memsize+15)>>4), &dseg)!=0)
+#endif
+    return -1; /* failed to allocate memory */
+
+  *theseg = (UWORD)dseg;
+  return 0; /* success */
+}
+#ifdef __TURBOC__
+#define dos_freemem freemem
+#else
+#define dos_freemem _dos_freemem
+#endif
+
 /* copies file (path+filename specified by srcFile) to drive:\filename */
 BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename)
 {
@@ -1614,7 +1643,7 @@ BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename)
   {
     printf("%s: Not enough space to transfer %s\n", pgm, filename);
     close(fdin);
-    exit(1);
+    return FALSE;
   }
 
   if ((fdout =
@@ -1626,6 +1655,7 @@ BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename)
     return FALSE;
   }
 
+#if 0 /* simple copy loop, read chunk then write chunk, repeat until all data copied */
   while ((ret = read(fdin, copybuffer, COPY_SIZE)) > 0)
   {
     if (write(fdout, copybuffer, ret) != ret)
@@ -1633,10 +1663,78 @@ BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename)
       printf("Can't write %u bytes to %s\n", ret, dest);
       close(fdout);
       unlink(dest);
-      break;
+      return FALSE;
     }
     copied += ret;
   }
+ #else /* read in whole file, then write out whole file */
+  {
+    ULONG filesize;
+    UWORD theseg;
+    BYTE far *buffer, far *bufptr;
+    UWORD offs;
+    unsigned chunk_size;
+    
+    /* get length of file to copy, then allocate enough memory for whole file */
+    filesize = filelength(fdin);
+    if (alloc_dos_mem(filesize, &theseg)!=0)
+    {
+      printf("Not enough memory to buffer %lu bytes for %s\n", filesize, source);
+      return NULL;
+    }
+    bufptr = buffer = MK_FP(theseg, 0);
+
+    /* read in whole file, a chunk at a time; adjust size of last chunk to match remaining bytes */
+    chunk_size = (COPY_SIZE < filesize)?COPY_SIZE:(unsigned)filesize;
+    while ((ret = read(fdin, copybuffer, chunk_size)) > 0)
+    {
+      for (offs = 0; offs < ret; offs++)
+      {
+        *bufptr = copybuffer[offs];
+        bufptr++;
+        if (FP_OFF(bufptr) > 0x7777) /* watcom needs this in tiny model */
+        {
+          bufptr = MK_FP(FP_SEG(bufptr)+0x700, FP_OFF(bufptr)-0x7000);
+        }
+      }
+      /* keep track of how much read in, and only read in filesize bytes */
+      copied += ret;
+      chunk_size = (COPY_SIZE < (filesize-copied))?COPY_SIZE:(unsigned)(filesize-copied);
+    }
+
+    /* write out file, a chunk at a time; adjust size of last chunk to match remaining bytes */
+    bufptr = buffer;
+    copied = 0;
+    do
+    {
+      /* keep track of how much read in, and only read in filesize bytes */
+      chunk_size = (COPY_SIZE < (filesize-copied))?COPY_SIZE:(unsigned)(filesize-copied);
+      copied += chunk_size;
+
+      /* setup chunk of data to be written out */
+      for (offs = 0; offs < chunk_size; offs++)
+      {
+        copybuffer[offs] = *bufptr;
+        bufptr++;
+        if (FP_OFF(bufptr) > 0x7777) /* watcom needs this in tiny model */
+        {
+          bufptr = MK_FP(FP_SEG(bufptr)+0x700, FP_OFF(bufptr)-0x7000);
+        }
+      }
+
+      /* write the data to disk, abort on any error */
+      if (write(fdout, copybuffer, chunk_size) != chunk_size)
+      {
+        printf("Can't write %u bytes to %s\n", ret, dest);
+        close(fdout);
+        unlink(dest);
+        return FALSE;
+      }
+    } while (copied < filesize);
+
+    dos_freemem(theseg);
+  }
+ #endif
 
   {
 #if defined __WATCOMC__ || defined _MSC_VER /* || defined __BORLANDC__ */
