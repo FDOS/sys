@@ -1,2 +1,5 @@
 @ECHO OFF
-call build.bat clobber
+DEL boot\*.lst > NUL
+DEL boot\*.bin > NUL
+DEL sys\*.com > NUL
+DEL sys\*.obj > NUL
