@@ -26,48 +26,48 @@
 ; Cambridge, MA 02139, USA.
 ;
 ;
-;	+--------+ 1FE0:7E00
-;	|BOOT SEC|
-;	|RELOCATE|
-;	|--------| 1FE0:7C00
-;     |LBA PKT |
-;     |--------| 1FE0:7BC0
-;     |--------| 1FE0:7BA0
-;     |BS STACK|
-;     |--------|
-;     |4KBRDBUF| used to avoid crossing 64KB DMA boundary
-;     |--------| 1FE0:63A0
-;	|        |
-;	|--------| 1FE0:3000
-;	| CLUSTER|
-;	|  LIST  |
-;	|--------| 1FE0:2000
-;	|        |
-;	|--------| 0000:7E00
-;	|BOOT SEC| overwritten by max 128k FAT buffer
-;	|ORIGIN  | and later by max 134k loaded kernel
-;	|--------| 0000:7C00
-;	|        |
-;	|--------|
-;	|KERNEL  | also used as max 128k FAT buffer
-;	|LOADED  | before kernel loading starts
-;	|--------| 0060:0000
-;	|        |
-;	+--------+
+;       +--------+ 1FE0:7E00
+;       |BOOT SEC|
+;       |RELOCATE|
+;       |--------| 1FE0:7C00
+;       |LBA PKT |
+;       |--------| 1FE0:7BC0
+;       |--------| 1FE0:7BA0
+;       |BS STACK|
+;       |--------|
+;       |4KBRDBUF| used to avoid crossing 64KB DMA boundary
+;       |--------| 1FE0:63A0
+;       |        |
+;       |--------| 1FE0:3000
+;       | CLUSTER|
+;       |  LIST  |
+;       |--------| 1FE0:2000
+;       |        |
+;       |--------| 0000:7E00
+;       |BOOT SEC| overwritten by max 128k FAT buffer
+;       |ORIGIN  | and later by max 134k loaded kernel
+;       |--------| 0000:7C00
+;       |        |
+;       |--------|
+;       |KERNEL  | also used as max 128k FAT buffer
+;       |LOADED  | before kernel loading starts
+;       |--------| 0060:0000
+;       |        |
+;       +--------+
 
 
 ;%define ISFAT12         1
 ;%define ISFAT16         1
 
 
-segment	.text
+segment .text
 
 %define BASE            0x7c00
 
                 org     BASE
 
 Entry:          jmp     short real_start
-		nop
+                nop
 
 ;       bp is initialized to 7c00h
 %define bsOemName       bp+0x03      ; OEM label
@@ -100,12 +100,12 @@ Entry:          jmp     short real_start
 
 ;-----------------------------------------------------------------------
 
-		times	0x3E-$+$$ db 0
+                times   0x3E-$+$$ db 0
 
 ; using bp-Entry+loadseg_xxx generates smaller code than using just
 ; loadseg_xxx, where bp is initialized to Entry, so bp-Entry equals 0
-%define loadsegoff_60	bp-Entry+loadseg_off
-%define loadseg_60	bp-Entry+loadseg_seg
+%define loadsegoff_60   bp-Entry+loadseg_off
+%define loadseg_60      bp-Entry+loadseg_seg
 
 %define LBA_PACKET       bp-0x40
 %define LBA_SIZE       word [LBA_PACKET]    ; size of packet, should be 10h
@@ -136,49 +136,49 @@ Entry:          jmp     short real_start
 ;-----------------------------------------------------------------------
 
 real_start:
-		cli
-		cld
-		xor	ax, ax
-		mov	ds, ax
-		mov	bp, BASE
+                cli
+                cld
+                xor     ax, ax
+                mov     ds, ax
+                mov     bp, BASE
 
 
-					; a reset should not be needed here
-;		int     0x13            ; reset drive
+                                        ; a reset should not be needed here
+;               int     0x13            ; reset drive
 
-;		int	0x12		; get memory available in AX
-;		mov	ax, 0x01e0
-;		mov	cl, 6		; move boot sector to higher memory
-;		shl	ax, cl
-;		sub	ax, 0x07e0
+;               int     0x12            ; get memory available in AX
+;               mov     ax, 0x01e0
+;               mov     cl, 6           ; move boot sector to higher memory
+;               shl     ax, cl
+;               sub     ax, 0x07e0
 
-		mov	ax, 0x1FE0
-		mov	es, ax
-		mov	si, bp
-		mov	di, bp
-		mov	cx, 0x0100
-		rep	movsw
+                mov     ax, 0x1FE0
+                mov     es, ax
+                mov     si, bp
+                mov     di, bp
+                mov     cx, 0x0100
+                rep     movsw
                 jmp     word 0x1FE0:cont
 
-loadseg_off	dw	0
-loadseg_seg	dw	LOADSEG
+loadseg_off     dw      0
+loadseg_seg     dw      LOADSEG
 
 cont:
-		mov     ds, ax
-		mov	ss, ax
-		lea     sp, [bp-0x60]
-		sti
+                mov     ds, ax
+                mov     ss, ax
+                lea     sp, [bp-0x60]
+                sti
 ;
 ; Note: some BIOS implementations may not correctly pass drive number
 ; in DL, however we work around this in SYS.COM by NOP'ing out the use of DL
 ; (formerly we checked for [drive]==0xff; update sys.c if code moves)
 ;
-		mov     [drive], dl     ; rely on BIOS drive number in DL
+                mov     [drive], dl     ; rely on BIOS drive number in DL
 
-		mov     LBA_SIZE, 10h
-		mov     LBA_SECNUM,1    ; initialise LBA packet constants
-		mov     word [LBA_SEG],ds
-		mov     word [LBA_OFF],READBUF
+                mov     LBA_SIZE, 10h
+                mov     LBA_SECNUM,1    ; initialise LBA packet constants
+                mov     word [LBA_SEG],ds
+                mov     word [LBA_OFF],READBUF
 
 
 ;       GETDRIVEPARMS:  Calculate start of some disk areas.
@@ -235,7 +235,7 @@ cont:
                 les     di, [loadsegoff_60] ; es:di = 60:0
 
 
-		; Search for KERNEL.SYS file name, and find start cluster.
+                ; Search for KERNEL.SYS file name, and find start cluster.
 
 next_entry:     mov     cx, 11
                 mov     si, filename
@@ -246,10 +246,10 @@ next_entry:     mov     cx, 11
                 je      ffDone
 
                 add     di, byte 0x20   ; go to next directory entry
-                cmp     byte [es:di], 0	; if the first byte of the name is 0,
-                jnz     next_entry	; there is no more files in the directory
+                cmp     byte [es:di], 0 ; if the first byte of the name is 0,
+                jnz     next_entry      ; there is no more files in the directory
 
-                jc      boot_error	; fail if not found
+                jc      boot_error      ; fail if not found
 ffDone:
                 push    ax              ; store first cluster number
 
@@ -266,7 +266,7 @@ ffDone:
 ;
 ;       Call with:      AX = first cluster in chain
 
-                les	bx, [loadsegoff_60]     ; es:bx=60:0
+                les     bx, [loadsegoff_60]     ; es:bx=60:0
                 mov     di, [sectPerFat]
                 mov     ax, word [fat_start]
                 mov     dx, word [fat_start+2]
@@ -276,7 +276,7 @@ ffDone:
                 ; Set ES:DI to the temporary storage for the FAT chain.
                 push    ds
                 pop     es
-		mov     ds, [loadseg_60]
+                mov     ds, [loadseg_60]
                 mov     di, FATBUF
 
 next_clust:     stosw                           ; store cluster number
@@ -296,8 +296,8 @@ fat_12:         add     si, si          ; multiply cluster number by 3...
                 ; the number was odd, CF was set in the last shift instruction.
 
                 jnc     fat_even
-		mov	cl, 4
-		shr	ax, cl
+                mov     cl, 4
+                shr     ax, cl
 
 fat_even:       and     ah, 0x0f        ; mask off the highest 4 bits
                 cmp     ax, 0x0ff8      ; check for EOF
@@ -385,10 +385,10 @@ boot_error:     call    show
 
 readDisk:       push    si
 
-		mov     LBA_SECTOR_0,ax
-		mov     LBA_SECTOR_16,dx
-		mov     word [READADDR_SEG], es
-		mov     word [READADDR_OFF], bx
+                mov     LBA_SECTOR_0,ax
+                mov     LBA_SECTOR_16,dx
+                mov     word [READADDR_SEG], es
+                mov     word [READADDR_OFF], bx
 
                 call    show
                 db      "."
@@ -396,42 +396,44 @@ read_next:
 
 ;******************** LBA_READ *******************************
 
-						; check for LBA support
-										
-  		mov 	ah,041h		;
-        	mov 	bx,055aah	;
+                                                ; check for LBA support
+                                                                                
+                mov     ah,041h                 ;
+                mov     bx,055aah               ;
                 mov     dl, [drive]
-		test	dl,dl			; don't use LBA addressing on A:
-		jz	read_normal_BIOS	; might be a (buggy)
-						; CDROM-BOOT floppy emulation
+
+                ; NOTE: sys must be updated if location changes!!!
+                test    dl,dl                   ; don't use LBA addressing on A:
+                jz      read_normal_BIOS        ; might be a (buggy)
+                                                ; CDROM-BOOT floppy emulation
 
                 int     0x13
-                jc	read_normal_BIOS
+                jc      read_normal_BIOS
 
-                shr     cx,1			; CX must have 1 bit set
+                shr     cx,1                    ; CX must have 1 bit set
 
-                sbb	bx,0aa55h - 1		; tests for carry (from shr) too!
-                jne	read_normal_BIOS
+                sbb     bx,0aa55h - 1           ; tests for carry (from shr) too!
+                jne     read_normal_BIOS
                 
-  				
-						; OK, drive seems to support LBA addressing
+                                
+                                                ; OK, drive seems to support LBA addressing
 
-		lea	si,[LBA_PACKET]
+                lea     si,[LBA_PACKET]
                             
-						; setup LBA disk block                            	
-		mov	LBA_SECTOR_32,bx  ; bx is 0 if extended 13h mode supported
-		mov	LBA_SECTOR_48,bx
-	
-		mov	ah,042h
+                                                ; setup LBA disk block                                  
+                mov     LBA_SECTOR_32,bx        ; bx is 0 if extended 13h mode supported
+                mov     LBA_SECTOR_48,bx
+        
+                mov     ah,042h
                 jmp short    do_int13_read
 
-							
+                                                        
 
 read_normal_BIOS:      
 
 ;******************** END OF LBA_READ ************************
-		mov     cx,LBA_SECTOR_0
-		mov     dx,LBA_SECTOR_16
+                mov     cx,LBA_SECTOR_0
+                mov     dx,LBA_SECTOR_16
 
 
                 ;
@@ -511,28 +513,29 @@ sign            dw      0xAA55
 %ifdef DBGPRNNUM
 ; DEBUG print hex digit routines
 PrintLowNibble:         ; Prints low nibble of AL, AX is destroyed
-	and  AL, 0Fh	; ignore upper nibble
-	cmp  AL, 09h	; if greater than 9, then don't base on '0', base on 'A'
-	jbe .printme
-	add  AL, 7		; convert to character A-F
-	.printme:
-	add  AL, '0'	; convert to character 0-9
-      mov  AH,0x0E      ; show character
-      int  0x10         ; via "TTY" mode
-      retn
+        and  AL, 0Fh    ; ignore upper nibble
+        cmp  AL, 09h    ; if greater than 9, then don't base on '0', base on 'A'
+        jbe .printme
+        add  AL, 7      ; convert to character A-F
+        .printme:
+        add  AL, '0'    ; convert to character 0-9
+        mov  AH,0x0E    ; show character
+        int  0x10       ; via "TTY" mode
+        retn
 PrintAL:                ; Prints AL, AX is preserved
-	push AX		; store value so we can process a nibble at a time
-	shr  AL, 4		; move upper nibble into lower nibble
-      call PrintLowNibble
-	pop  AX		; restore for other nibble
-	push AX		; but save so we can restore original AX
-      call PrintLowNibble
-	pop  AX		; restore for other nibble
-      retn
+        push AX         ; store value so we can process a nibble at a time
+        shr  AL, 4              ; move upper nibble into lower nibble
+        call PrintLowNibble
+        pop  AX         ; restore for other nibble
+        push AX         ; but save so we can restore original AX
+        call PrintLowNibble
+        pop  AX         ; restore for other nibble
+        retn
 PrintNumber:            ; Prints (in Hex) value in AX, AX is preserved
-      xchg AH, AL ; high byte 1st
-      call PrintAL
-      xchg AH, AL  ; now low byte
-      call PrintAL
-	retn
+        xchg AH, AL     ; high byte 1st
+        call PrintAL
+        xchg AH, AL     ; now low byte
+        call PrintAL
+        retn
 %endif
+
