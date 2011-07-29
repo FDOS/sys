@@ -54,7 +54,7 @@ Switches (FreeDOS specific):
   <b>/B <i>btdrv</i></b>
   Sets the BIOS boot drive # (in hex) stored within the boot sector.
 
-  <b>/FORCEDRV</b>
+  <b>/FORCE:BSDRV</b>
   Causes the boot sector to only use the <i>btdrv</i> indicated in
   boot sector.  NOPs the code that normally uses BIOS provided
   drive # passed at boot time in the DL register.
@@ -69,7 +69,7 @@ Switches (FreeDOS specific):
   The original boot sector is written to <i>[path]filename</i> and
   then exits.  The filename may refer to any [image or bs] file,
   if exists only the 1st 512 bytes will be overwritten.
-  Note: /backupbs is intented to provide a backup of existing
+  Note: /backupbs is intended to provide a backup of existing
   boot sector in case one wishes to restore it later (see /restorbs),
   whereas /dumpbs is intended only as a convenient method to
   obtain current boot sector (such as for debugging purposes or
@@ -89,7 +89,7 @@ Switches (FreeDOS specific):
                   the FreeDOS kernel and copy FreeDOS system files
                   (default to KERNEL.SYS and load segment of 0x60)
     <b>DR</b>   - use DR DOS 7+ (including Udo Kuhnt's DR-DOS
-                  Enhanement Project) compatible settings
+                  Enhancement Project) compatible settings
                   (use IBMBIO.COM & IBMDOS.COM, and loadseg=0x70)
     <b>PC</b>   - use PC-DOS (any) compatible settings, including
                   alternate boot sector (supports FAT12/16 only)
