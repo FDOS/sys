@@ -33,7 +33,7 @@ oemfat16.h:	..\boot\oemfat16.bin bin2c.com
 		bin2c ..\boot\$*.bin $*.h $*
 
 ..\bin\sys.com:	$(SYS_C) ..\hdr\*.h fat12com.h fat16com.h fat32chs.h fat32lba.h oemfat12.h oemfat16.h
-		$(CL) $(CFLAGST) -DFORSYS -DWITHFAT32 $(SYS_C)
+		$(CL) $(CFLAGST) -DFORSYS -DWITHFAT32 -DWITHOEMCOMPATBS $(SYS_C)
 		copy sys.com ..\bin
 		del sys.com
 
