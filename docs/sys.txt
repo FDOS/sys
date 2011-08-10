@@ -1,4 +1,4 @@
-FreeDOS System Installer v3.6e - Nov 13, 2009
+FreeDOS System Installer v3.7 - Aug 10, 2011
 documentation by:
   Jeremy Davis
   Bart Oldeman
@@ -26,8 +26,10 @@ Usage: SYS [source] drive: [bootsect] [{option}]
              /OEM:FD use FreeDOS compatible settings
              /OEM:DR use DR DOS 7+ compatible settings (same as /OEM)
              /OEM:PC use PC-DOS compatible settings
-             /OEM:MS use MS-DOS compatible settings
-             /OEM:W9x use MS Win9x DOS compatible settings
+             /OEM:MS use MS-DOS compatible settings (up to 6.x)
+             /OEM:W9x use MS Win9x DOS compatible settings (7.x+)
+             /OEM:Rx use RxDOS compatible settings
+             /OEM:DE use DEll Real Mode Kernel settings
              default is /OEM:AUTO, select DOS based on existing files
   /K name  : name of kernel to use in boot sector instead of KERNEL.SYS
   /L segm  : hex load segment to use in boot sector instead of 0x60
@@ -102,6 +104,11 @@ even 1st floppy drive attempts to use LBA support
 (note that CHS may still be used if LBA check fails)
 and /FORCE:CHS will always bypass use of LBA extensions.
 
+*** For OEM compatible support one should format the drive
+and then immediately run sys before adding any other
+files or even volume label for maximum compatibility.
+A future update to sys will ensure the 1st two directory
+entries are the kernel files, but currently not implemented.
 
 Kernel Configuration Options:
 

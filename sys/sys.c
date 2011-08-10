@@ -500,6 +500,8 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
             opts->flavor = OEM_W9x;
           else if (memicmp(argp, "RX", 2) == 0)
             opts->flavor = OEM_RX;
+          else if (memicmp(argp, "DE", 2) == 0) /* DELL */
+            opts->flavor = OEM_DRMK;
 #endif
           else if (memicmp(argp, "FD", 2) == 0)
             opts->flavor = OEM_FD;
