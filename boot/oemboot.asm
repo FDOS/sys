@@ -42,6 +42,15 @@
 ; (though dx:ax=[data_start], cx=0, bx=0x0f00 on FAT12 or
 ; 0x0700 on FAT32, ds=0, ss:sp=0:7b??)
 
+; For Dell Real Mode Kernel (DRMK) the boot requirments seem
+; similar to PC/MS DOS < 7, including DS[BP] pointing to 
+; boot sector (i.e. bp=0x7c00 same as MS-DOS >= 7).
+; see http://syslinux.zytor.com/wiki/index.php/DRMK
+; Note: build 15 (and presumably earlier) versions have
+; same requirement as earlier PC/MS DOS in that the kernel
+; files should be the 1st two entries in root directory.
+
+
 ; the boot time stack may store the original int1E floppy
 ; parameter table, otherwise nothing else important seems
 ; stored there and I am unsure if even this value is used
