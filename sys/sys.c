@@ -32,7 +32,7 @@
 #define FDCONFIG              /* include support to configure FD kernel */
 /* #define DRSYS */           /* SYS for Enhanced DR-DOS (OpenDOS enhancement Project) */
 
-#define SYS_VERSION "v3.7"
+#define SYS_VERSION "v3.7a"
 #define SYS_NAME "FreeDOS System Installer "
 
 
@@ -382,6 +382,7 @@ void put_boot(SYSOptions *opts);
 BOOL check_space(COUNT, ULONG);
 BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename);
 
+/* display how to use and basic help information */
 void showHelpAndExit(void)
 {
   printf(
@@ -395,15 +396,8 @@ void showHelpAndExit(void)
       "  /BOOTONLY: do *not* copy kernel / shell, only update boot sector or image\n"
       "  /UPDATE  : copy kernel and update boot sector (do *not* copy shell)\n"
       "  /OEM     : indicates boot sector, filenames, and load segment to use\n"
-      "             /OEM:FD use FreeDOS compatible settings\n"
-      "             /OEM:EDR use Enhanced DR DOS 7+ compatible settings\n"
-      "             /OEM:DR use DR DOS 7+ compatible settings\n"
-#ifdef WITHOEMCOMPATBS
-      "             /OEM:PC use PC-DOS compatible settings\n"
-      "             /OEM:MS use MS-DOS compatible settings\n"
-      "             /OEM:W9x use MS Win9x DOS compatible settings\n"
-#endif
       "             default is /OEM[:AUTO], select DOS based on existing files\n"
+      "             see %s /HELP OEM\n"
       "  /K name  : name of kernel to use in boot sector instead of %s\n"
       "  /L segm  : hex load segment to use in boot sector instead of %02x\n"
       "  /B btdrv : hex BIOS # of boot drive set in bs, 0=A:, 80=1st hd,...\n"
@@ -411,14 +405,39 @@ void showHelpAndExit(void)
       "             /FORCE:BSDRV use boot drive # set in bootsector\n"
       "             /FORCE:BIOSDRV use boot drive # provided by BIOS\n"
       "  /NOBAKBS : skips copying boot sector to backup bs, FAT32 only else ignored\n"
+      "  /HELP    : display this usage screen and exit\n"
 #ifdef FDCONFIG
-      "%s CONFIG /help\n"
+      "Usage: %s CONFIG /HELP\n"
 #endif
       /*SYS, KERNEL.SYS/DRBIO.SYS 0x60/0x70*/
-      , pgm, bootFiles[0].kernel, bootFiles[0].loadaddr
+      , pgm, pgm, bootFiles[0].kernel, bootFiles[0].loadaddr
 #ifdef FDCONFIG
       , pgm
 #endif
+  );
+  exit(1);
+}
+
+/* List OEM options supported, I.e. known DOS flavors supported */
+void showOemHelpAndExit(void)
+{
+  printf(
+      "Usage: %s [source] drive: [bootsect] [{option}]\n"
+      "  /OEM     : indicates boot sector, filenames, and load segment to use\n"
+      "             /OEM:FD   use FreeDOS compatible settings\n"
+      "             /OEM:EDR  use Enhanced DR DOS 7+ compatible settings\n"
+      "             /OEM:DR   use DR DOS 7+ compatible settings\n"
+#ifdef WITHOEMCOMPATBS
+      "             /OEM:PC   use PC-DOS compatible settings\n"
+      "             /OEM:MS   use MS-DOS compatible settings\n"
+      "             /OEM:W9x  use MS Win9x DOS compatible settings\n"
+      "             /OEM:Rx   use RxDOS compatible settings\n"
+      "             /OEM:DELL use Dell Real Mode Kernel (DRMK) settings\n"
+#else
+      " Note that PC/MS/... compatible settings not compiled in\n"
+#endif
+      "\n  Default is /OEM[:AUTO], select DOS based on existing files\n"
+      , pgm
   );
   exit(1);
 }
@@ -452,6 +471,17 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
       /* explicit request for base help/usage */
       if ((*argp == '?') || (memicmp(argp, "HELP", 4) == 0))
       {
+        /* see if requesting specific help details */
+        if ((argno+1)<argc)
+        {    
+          /* help on OEM options */
+          if (memicmp(argv[argno+1], "OEM", 3) == 0)
+            showOemHelpAndExit();
+          else if (memicmp(argv[argno+1], "CONFIG", 6) == 0)
+            exit(FDKrnConfigMain(argc, argv));
+
+          /* else bad option so fall through to standard usage help */
+        }
         showHelpAndExit();
       }
       /* enable extra (DEBUG) output */

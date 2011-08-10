@@ -13,9 +13,7 @@
 *  merged into SYS by tom ehlert                                                                        *
 ***************************************************************************/
 
-/* This source compiled & tested with Borland C/C++ 3.1 + TC 2.01*/
-
-char VERSION[] = "v1.00";
+char VERSION[] = "v1.01";
 char PROGRAM[] = "SYS CONFIG";
 char KERNEL[] = "KERNEL.SYS";
 
@@ -355,7 +353,7 @@ int FDKrnConfigMain(int argc, char **argv)
   printf("FreeDOS Kernel Configuration %s\n", VERSION);
 
   /* 1st go through and just process arguments (help/filename/etc) */
-  for (i = 2; i < argc; i++)
+  for (i = 1; i < argc; i++)
   {
     argptr = argv[i];
 
@@ -375,6 +373,10 @@ int FDKrnConfigMain(int argc, char **argv)
                  argptr, PROGRAM);
           exit(1);
       }
+    }
+    else if (memicmp(argptr, "CONFIG", 6) == 0)
+    {
+      /* ignore */
     }
   }
 
