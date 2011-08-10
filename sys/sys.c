@@ -32,7 +32,7 @@
 #define FDCONFIG              /* include support to configure FD kernel */
 /* #define DRSYS */           /* SYS for Enhanced DR-DOS (OpenDOS enhancement Project) */
 
-#define SYS_VERSION "v3.6e"
+#define SYS_VERSION "v3.7"
 #define SYS_NAME "FreeDOS System Installer "
 
 
@@ -315,6 +315,7 @@ DOSBootFiles bootFiles[] = {
   /* MS-DOS  */ { "IO.SYS", "MSDOS.SYS", /*0x70:*/0x0, 0, 10240 },
   /* W9x-DOS */ { "IO.SYS", "MSDOS.SYS", /*0x70:*/0x0200, 0, 0 },
   /* Rx-DOS  */ { "RXDOSBIO.SYS", "RXDOS.SYS", /*0x70:*/0x0, 0, 1 },
+  /* DRMK    */ { "DELLBIO.BIN", "DELLRMK.BIN", /*0x70:*/0x0, 0, 1 },
 #endif
 };
 #define DOSFLAVORS (sizeof(bootFiles) / sizeof(*bootFiles))
@@ -335,6 +336,7 @@ DOSBootFiles bootFiles[] = {
 #define OEM_MS     4  /* use PC-DOS compatible BS with MS names */
 #define OEM_W9x    5  /* use PC-DOS compatible BS with MS names */
 #define OEM_RX     6  /* use PC-DOS compatible BS with Rx names */
+#define OEM_DRMK   7  /* use PC-DOS compatible BS with Dell names */
 #endif
 
 CONST char * msgDOS[DOSFLAVORS] = {  /* order should match above items */
@@ -351,6 +353,7 @@ CONST char * msgDOS[DOSFLAVORS] = {  /* order should match above items */
   "MS-DOS compatibility mode\n",
   "Win9x DOS compatibility mode\n",
   "RxDOS compatibility mode\n",
+  "Dell Real Mode Kernel (DRMK) mode\n",
 #endif
 };
 
