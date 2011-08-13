@@ -6,7 +6,7 @@
 
 !include "../mkfiles/generic.mak"
 
-SYS_C=sys.c fdkrncfg.c ..\kernel\prf.c talloc.c
+SYS_C=sys.c usage.c initopts.c putboot.c copy.c fdkrncfg.c prf.c talloc.c
 
 ########################################################################
 
