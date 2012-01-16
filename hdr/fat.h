@@ -28,12 +28,6 @@
 /* Cambridge, MA 02139, USA.                                    */
 /****************************************************************/
 
-#ifdef MAIN
-#ifdef VERSION_STRINGS
-static BYTE *fat_hRcsId =
-    "$Id: fat.h,v 1.1 2009-07-10 14:59:02 perditionc Exp $";
-#endif
-#endif
 
 /* FAT file system attribute bits                                       */
 #define D_NORMAL        0       /* normal                       */
@@ -105,8 +99,8 @@ struct dirent {
   UWORD dir_crdate;             /* Creation date                */
   UWORD dir_accdate;            /* Last access date             */
   UWORD dir_start_high;         /* High word of the cluster     */
-  time dir_time;                /* Time file created/updated    */
-  date dir_date;                /* Date file created/updated    */
+  UWORD dir_time;               /* Time file created/updated    */
+  UWORD dir_date;               /* Date file created/updated    */
   UWORD dir_start;              /* Starting cluster             */
   /* 1st available = 2            */
   ULONG dir_size;               /* File size in bytes           */
