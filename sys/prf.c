@@ -27,26 +27,10 @@
 /****************************************************************/
 
 #include "portab.h"
-#include "debug.h"
 
-#ifdef FORSYS
 #include <io.h>
 #include <stdarg.h>
-#endif
 
-#ifdef _INIT
-#define handle_char init_handle_char
-#define put_console init_put_console
-#define do_printf init_do_printf
-#define printf init_printf
-#define sprintf init_sprintf
-#define charp init_charp
-#endif
-
-#ifdef VERSION_STRINGS
-static BYTE *prfRcsId =
-    "$Id: prf.c,v 1.1 2009-07-10 14:59:02 perditionc Exp $";
-#endif
 
 /* special console output routine */
 /*#define DOSEMU */
@@ -107,37 +91,9 @@ void put_console(int c)
   if (c == '\n')
     put_console('\r');
 
-#ifdef FORSYS
   write(1, &c, 1);              /* write character to stdout */
-#else
-#if defined(__TURBOC__)
-  _AL = c;
-  __int__(0x29);
-#elif defined(__WATCOMC__)
-  int29(c);
-#if defined DEBUG_PRINT_COMPORT
-  fastComPrint(c);
-#endif
-#elif defined(I86)
-  __asm
-  {
-    mov al, byte ptr c;
-    int 0x29;
-  }
-#endif                          /* __TURBO__ */
-#endif                          /*  FORSYS   */
 }
 #endif                          /*  DOSEMU   */
-
-#if defined(DEBUG_NEED_PRINTF) || defined(FORSYS) || defined(_INIT) || defined(TEST)
-
-#ifndef FORSYS
-/* copied from bcc (Bruce's C compiler) stdarg.h */
-typedef char FAR *va_list;
-#define va_start(arg, last) ((arg) = (va_list) (&(last)+1))
-#define va_arg(arg, type) (((type FAR *)(arg+=sizeof(type)))[-1])
-#define va_end(arg)
-#endif
 
 static BYTE FAR *charp = 0;
 
@@ -350,57 +306,7 @@ STATIC void do_printf(CONST BYTE FAR * fmt, va_list arg)
   }
   va_end(arg);
 }
-#endif
-#if !defined(FORSYS) && !defined(_INIT)
 
-extern void put_string(const char FAR *);
-extern void put_unsigned(unsigned, int, int);
-
-void hexd(char *title, UBYTE FAR * p, COUNT numBytes)
-{
-  int loop, start = 0;
-  put_string(title);
-  if (numBytes > 16)
-    put_console('\n');
-
-  for (start = 0; start < numBytes; start += 16)
-  {
-    put_unsigned(FP_SEG(p), 16, 4);
-    put_console(':');
-    put_unsigned(FP_OFF(p + start), 16, 4);
-    put_console('|');
-    for (loop = start; loop < numBytes && loop < start+16;loop++)
-    {
-      put_unsigned(p[loop], 16, 2);
-      put_console(' ');
-    }   
-    for (loop = start; loop < numBytes && loop < start+16;loop++)
-      put_console(p[loop] < 0x20 ? '.' : p[loop]);
-    put_console('\n');
-  }
-}
-
-/* put_unsigned -- print unsigned int in base 2--16 */
-void put_unsigned(unsigned n, int base, int width)
-{
-  char s[6];   /* CAUTION: width must be [0..5] and is not checked! */
-
-  s[width] = '\0';                   /* terminate the number string */
-  while (--width >= 0)
-  {                             /* generate digits in reverse order */
-    s[width] = "0123456789ABCDEF"[n % base];
-    n /= base;
-  }
-  put_string(s);
-}
-
-void put_string(const char FAR *s)
-{
-  while(*s != '\0')
-    put_console(*s++);
-}
-
-#endif
 
 #ifdef TEST
 /*
