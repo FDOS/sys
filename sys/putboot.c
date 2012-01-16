@@ -27,6 +27,7 @@
 ***************************************************************/
 
 #include "sys.h"
+#include "diskio.h"
 
 #include "fat12com.h"
 #include "fat16com.h"
@@ -146,181 +147,47 @@ VOID dump_sector(unsigned char far * sec)
 #endif
 
 
-#ifdef __WATCOMC__
-
-int absread(int DosDrive, int nsects, int foo, void *diskReadPacket);
-#pragma aux absread =  \
-      "push bp"           \
-      "int 0x25"          \
-      "sbb ax, ax"        \
-      "popf"              \
-      "pop bp"            \
-      parm [ax] [cx] [dx] [bx] \
-      modify [si di] \
-      value [ax];
-
-int abswrite(int DosDrive, int nsects, int foo, void *diskReadPacket);
-#pragma aux abswrite =  \
-      "push bp"           \
-      "int 0x26"          \
-      "sbb ax, ax"        \
-      "popf"              \
-      "pop bp"            \
-      parm [ax] [cx] [dx] [bx] \
-      modify [si di] \
-      value [ax];
-
-int fat32readwrite(int DosDrive, void *diskReadPacket, unsigned intno);
-#pragma aux fat32readwrite =  \
-      "mov ax, 0x7305"    \
-      "mov cx, 0xffff"    \
-      "int 0x21"          \
-      "sbb ax, ax"        \
-      parm [dx] [bx] [si] \
-      modify [cx dx si]   \
-      value [ax];
-
-void reset_drive(int DosDrive);
-#pragma aux reset_drive = \
-      "push ds" \
-      "inc dx" \
-      "mov ah, 0xd" \ 
-      "int 0x21" \
-      "mov ah,0x32" \
-      "int 0x21" \
-      "pop ds" \
-      parm [dx] \
-      modify [ax bx];
-
-int generic_block_ioctl(unsigned drive, unsigned cx, unsigned char *par);
-#pragma aux generic_block_ioctl = \
-      "mov ax, 0x440d" \
-      "int 0x21" \
-      "sbb ax, ax" \
-      value [ax] \
-      parm [bx] [cx] [dx]; /* BH must be 0 for lock! */
-
-#else
-
-#ifndef __TURBOC__
-
-int2526readwrite(int DosDrive, void *diskReadPacket, unsigned intno)
+/* copies ASCIIZ string to directory 83 format padded with spaces */
+void setFilename(char *buffer, char const *filename)
 {
-  union REGS regs;
-
-  regs.h.al = (BYTE) DosDrive;
-  regs.x.bx = (short)diskReadPacket;
-  regs.x.cx = 0xffff;
-
-  int86(intno, &regs, &regs);
-
-  return regs.x.cflag;
-}
-
-#define absread(DosDrive, foo, cx, diskReadPacket) \
-int2526readwrite(DosDrive, diskReadPacket, 0x25)
-
-#define abswrite(DosDrive, foo, cx, diskReadPacket) \
-int2526readwrite(DosDrive, diskReadPacket, 0x26)
-
-#endif
-
-int fat32readwrite(int DosDrive, void *diskReadPacket, unsigned intno)
-{
-  union REGS regs;
-
-  regs.x.ax = 0x7305;
-  regs.h.dl = DosDrive;
-  regs.x.bx = (short)diskReadPacket;
-  regs.x.cx = 0xffff;
-  regs.x.si = intno;
-  intdos(&regs, &regs);
-  
-  return regs.x.cflag;
-} /* fat32readwrite */
-
-void reset_drive(int DosDrive)
-{
-  union REGS regs;
-
-  regs.h.ah = 0xd;
-  intdos(&regs, &regs);
-  regs.h.ah = 0x32;
-  regs.h.dl = DosDrive + 1;
-  intdos(&regs, &regs);
-} /* reset_drive */
-
-int generic_block_ioctl(unsigned drive, unsigned cx, unsigned char *par)
-{
-  union REGS regs;
-
-  regs.x.ax = 0x440d;
-  regs.x.cx = cx;
-  regs.x.dx = (unsigned)par;
-  regs.x.bx = drive; /* BH must be 0 for lock! */
-  intdos(&regs, &regs);
-  return regs.x.cflag;
-} /* generic_block_ioctl */
-
-#endif
-
-int MyAbsReadWrite(int DosDrive, int count, ULONG sector, void *buffer,
-                   int write)
-{
-  struct {
-    unsigned long sectorNumber;
-    unsigned short count;
-    void far *address;
-  } diskReadPacket;
-
-  diskReadPacket.sectorNumber = sector;
-  diskReadPacket.count = count;
-  diskReadPacket.address = buffer;
-
-  if ((!write && absread(DosDrive, -1, -1, &diskReadPacket) == -1)
-      || (write && abswrite(DosDrive, -1, -1, &diskReadPacket) == -1))
+  int i;
+  /* pad with spaces, if name.ext is less than 8.3 blanks filled with spaces */
+  memset(buffer, ' ', 11);
+  /* copy over up to 8 characters of filename and 3 characters of extension */
+  for (i = 0; *filename && (*filename != '.'); i++, filename++)
+    if (i<FNAME_SIZE) buffer[i] = toupper(*filename);
+  if (*filename == '.')
   {
-#ifdef WITHFAT32
-    return fat32readwrite(DosDrive + 1, &diskReadPacket, write);
-#else
-    return 0xff;
-#endif
+    filename++; /* skip past . */
+    for (i = 8; (i < 11) && *filename; i++, filename++)
+      buffer[i] = toupper(*filename);
   }
-  return 0;
-} /* MyAbsReadWrite */
+}
 
 
-#ifdef __WATCOMC__
-/*
- * If BIOS has got LBA extensions, after the Int 13h call BX will be 0xAA55.
- * If extended disk access functions are supported, bit 0 of CX will be set.
- */
-BOOL haveLBA(void);     /* return TRUE if we have LBA BIOS, FALSE otherwise */
-#pragma aux haveLBA =  \
-      "mov ax, 0x4100"  /* IBM/MS Int 13h Extensions - installation check */ \
-      "mov bx, 0x55AA" \
-      "mov dl, 0x80"   \
-      "int 0x13"       \
-      "xor ax, ax"     \
-      "cmp bx, 0xAA55" \
-      "jne quit"       \
-      "and cx, 1"      \
-      "xchg cx, ax"    \
-"quit:"                \
-      modify [bx cx dx]   \
-      value [ax];
-#else
-
-BOOL haveLBA(void)
+#ifdef WITHOEMCOMPATBS
+/* for FAT12/16 rearranges root directory so kernel & dos files are 1st two entries */
+void updateRootDir(ULONG rootSector, UCOUNT rootDirSectors, char const *kernel, char const *dos)
 {
-  union REGS r;
-  r.x.ax = 0x4100;
-  r.x.bx = 0x55AA;
-  r.h.dl = 0x80;
-  int86(0x13, &r, &r);
-  return r.x.bx == 0xAA55 && r.x.cx & 1;
+  struct dirent *dir;
+  struct lfn_entry *lfn;
+  BYTE buffer[SEC_SIZE];
+  BYTE filename[11];
+  
+  setFilename(filename, kernel);
+  // read in sector
+  if (MyAbsReadWrite(opts->dstDrive, 1, rootSector, buffer, 0) != 0)
+  {
+    printf("Error reading root directory, not updated!\n");
+    return;
+  }
+  // loop through directory entries until kernel found or 
+  dir = (struct dirent *)buffer;
+  lfn = (struct lfn_entry *)dir;
+  if ((void*)dir == (void*)lfn) dir = (void *)lfn;
 }
 #endif
+
 
 void correct_bpb(struct bootsectortype *default_bpb,
                  struct bootsectortype *oldboot, BOOL verbose)
@@ -480,6 +347,10 @@ void put_boot(SYSOptions *opts)
   UBYTE default_bpb[0x5c];
   int bsBiosMovOff;  /* offset in bs to mov [drive],dl that we NOP out */
 
+  /* for OEM kernels, ensure 1st two root dir entries correspond with kernel files */
+  ULONG rootSector; /* first data sector, for FAT12/16 also 1st sector of root directory */
+  UCOUNT rootDirSectors;
+  
   if (opts->verbose)
   {
     printf("Reading old bootsector from drive %c:\n", opts->dstDrive + 'A');
@@ -523,15 +394,17 @@ void put_boot(SYSOptions *opts)
     * (http://www.nondot.org/sabre/os/files/FileSystems/FatFormat.pdf)
     */
     ULONG fatSize, totalSectors, dataSectors, clusters;
-    UCOUNT rootDirSectors;
 
     bs32 = (struct bootsectortype32 *)bs;
     rootDirSectors = (bs->bsRootDirEnts * DIRENT_SIZE  /* 32 */
                  + bs32->bsBytesPerSec - 1) / bs32->bsBytesPerSec;
     fatSize      = bs32->bsFATsecs ? bs32->bsFATsecs : bs32->bsBigFatSize;
     totalSectors = bs32->bsSectors ? bs32->bsSectors : bs32->bsHugeSectors;
-    dataSectors = totalSectors
-      - bs32->bsResSectors - (bs32->bsFATs * fatSize) - rootDirSectors;
+
+    /* 1st data sector, also root dir sector for FAT12/16, for FAT32 root dir = bsRootCluster-2+rootSector */
+    rootSector = bs32->bsResSectors + (bs32->bsFATs * fatSize);
+
+    dataSectors = totalSectors - rootSector - rootDirSectors;
     clusters = dataSectors / bs32->bsSecPerClust;
  
     if (clusters < FAT_MAGIC)        /* < 4085 */
@@ -539,7 +412,7 @@ void put_boot(SYSOptions *opts)
     else if (clusters < FAT_MAGIC16) /* < 65525 */
       fs = FAT16;
     else
-      fs = FAT32;
+      fs = FAT32;      
   }
 
   /* bit 0 set if function to use current BPB, clear if Device
@@ -745,27 +618,7 @@ void put_boot(SYSOptions *opts)
          bs->bsFATsecs, bs->bsFATs);
   }
   
-  {
-    int i = 0;
-    memset(&newboot[0x1f1], ' ', 11);
-    while (opts->kernel.kernel[i] && opts->kernel.kernel[i] != '.')
-    {
-      if (i < 8)
-        newboot[0x1f1+i] = toupper(opts->kernel.kernel[i]);
-      i++;
-    }
-    if (opts->kernel.kernel[i] == '.')
-    {
-      /* copy extension */
-      int j = 0;
-      i++;
-      while (opts->kernel.kernel[i+j] && j < 3)
-      {
-        newboot[0x1f9+j] = toupper(opts->kernel.kernel[i+j]);
-        j++;
-      }
-    }
-  }
+  setFilename(&newboot[0x1f1], opts->kernel.kernel);
 
   if (opts->verbose)
   {
@@ -813,6 +666,14 @@ void put_boot(SYSOptions *opts)
         exit(1);
       }
     }
+    
+#ifdef WITHOEMCOMPATBS
+    /* if OEM and FAT12/16 then update root directory as well */
+    if ((fs != FAT32) && !opts->kernel.stdbs)
+    {
+      updateRootDir(rootSector, rootDirSectors, opts->kernel.kernel, opts->kernel.dos);
+    }
+#endif
 
   } /* if write boot sector to boot record*/
 
