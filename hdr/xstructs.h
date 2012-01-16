@@ -6,12 +6,6 @@
 /*                                                              */
 /****************************************************************/
 
-#ifdef MAIN
-#ifdef VERSION_STRINGS
-static BYTE *XStructs_hRcsId =
-    "$Id: xstructs.h,v 1.1 2009-07-10 14:59:02 perditionc Exp $";
-#endif
-#endif
 
 struct xdpbdata {
   UWORD xdd_dpbsize;

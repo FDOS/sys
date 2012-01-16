@@ -28,12 +28,6 @@
 /* Cambridge, MA 02139, USA.                                    */
 /****************************************************************/
 
-#ifdef MAIN
-#ifdef VERSION_STRINGS
-static BYTE *clock_hRcsId =
-    "$Id: dcb.h,v 1.1 2009-07-10 14:59:02 perditionc Exp $";
-#endif
-#endif
 
 /* Internal drive parameter block                               */
 struct dpb {
