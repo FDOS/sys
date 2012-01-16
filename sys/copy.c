@@ -27,18 +27,38 @@
 ***************************************************************/
 
 #include "sys.h"
+#include "xstructs.h"
+#include "diskio.h"
+
+#ifdef __TURBOC__
+#include <dir.h>
+#include <mem.h>
+#else
+#include <memory.h>
+#endif
 
 #define COPY_SIZE       0x4000
 
 #ifdef __WATCOMC__
+
 long filelength(int __handle);
-extern int unlink(const char *pathname);
+#pragma aux filelength = \
+      "mov ax, 0x4202" \
+      "xor cx, cx" \
+      "xor dx, dx" \
+      "int 0x21" \
+      "push ax" \
+      "push dx" \
+      "mov ax, 0x4200" \
+      "xor cx, cx" \
+      "xor dx, dx" \
+      "int 0x21" \
+      "pop dx" \
+      "pop ax" \
+      parm [bx] \
+      modify [cx] \
+      value [dx ax];
 
-int stat(const char *file_name, struct stat *statbuf);
-
-/* WATCOM's getenv is case-insensitive which wastes a lot of space
-   for our purposes. So here's a simple case-sensitive one */
-char *getenv(const char *name);
 #endif
 
 
@@ -55,7 +75,6 @@ void truename(char far *dest, const char *src);
       parm [es di] [si];
 
 #else
-
 
 void truename(char *dest, const char *src)
 {
@@ -140,6 +159,7 @@ BOOL check_space(COUNT drive, ULONG bytes)
 
 BYTE copybuffer[COPY_SIZE];
 
+#ifndef WIN32
 /* allocate memory from DOS, return 0 on success, nonzero otherwise */
 int alloc_dos_mem(ULONG memsize, UWORD *theseg)
 {
@@ -158,6 +178,7 @@ int alloc_dos_mem(ULONG memsize, UWORD *theseg)
 #define dos_freemem freemem
 #else
 #define dos_freemem _dos_freemem
+#endif
 #endif
 
 /* copies file (path+filename specified by srcFile) to drive:\filename */
@@ -240,12 +261,17 @@ BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename)
     
     /* get length of file to copy, then allocate enough memory for whole file */
     filesize = filelength(fdin);
-    if (alloc_dos_mem(filesize, &theseg)!=0)
-    {
-      printf("Not enough memory to buffer %lu bytes for %s\n", filesize, source);
-      return FALSE;
-    }
-    bufptr = buffer = MK_FP(theseg, 0);
+    #ifdef WIN32
+      buffer = (BYTE *)malloc((unsigned)filesize);
+    #else
+      if (alloc_dos_mem(filesize, &theseg)!=0)
+      {
+        printf("Not enough memory to buffer %lu bytes for %s\n", filesize, source);
+        return FALSE;
+      }
+      buffer = MK_FP(theseg, 0);
+    #endif
+    bufptr = buffer;
 
     /* read in whole file, a chunk at a time; adjust size of last chunk to match remaining bytes */
     chunk_size = (COPY_SIZE < filesize)?COPY_SIZE:(unsigned)filesize;
@@ -295,7 +321,11 @@ BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename)
       }
     } while (copied < filesize);
 
-    dos_freemem(theseg);
+    #ifdef WIN32
+      free((void *)buffer);
+    #else
+      dos_freemem(theseg);
+    #endif
   }
  #endif
 
