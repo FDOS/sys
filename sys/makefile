@@ -6,7 +6,9 @@
 
 !include "../mkfiles/generic.mak"
 
-SYS_C=sys.c usage.c initopts.c putboot.c copy.c fdkrncfg.c prf.c talloc.c
+DOS_FILES=diskio_d.c prf.c talloc.c
+
+SYS_C=sys.c usage.c initopts.c fdkrncfg.c putboot.c copy.c $(DOS_FILES)
 
 ########################################################################
 
@@ -32,8 +34,8 @@ oemfat12.h:	..\boot\oemfat12.bin bin2c.com
 oemfat16.h:	..\boot\oemfat16.bin bin2c.com
 		bin2c ..\boot\$*.bin $*.h $*
 
-..\bin\sys.com:	$(SYS_C) ..\hdr\*.h fat12com.h fat16com.h fat32chs.h fat32lba.h oemfat12.h oemfat16.h
-		$(CL) $(CFLAGST) -DFORSYS -DWITHFAT32 -DWITHOEMCOMPATBS $(SYS_C)
+..\bin\sys.com:	$(SYS_C) sys.h ..\hdr\*.h fat12com.h fat16com.h fat32chs.h fat32lba.h oemfat12.h oemfat16.h
+		$(CL) $(CFLAGST) -DWITHFAT32 -DWITHOEMCOMPATBS $(SYS_C)
 		copy sys.com ..\bin
 		del sys.com
 

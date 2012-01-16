@@ -32,7 +32,7 @@
 #define FDCONFIG              /* include support to configure FD kernel */
 /* #define DRSYS */           /* SYS for Enhanced DR-DOS (OpenDOS enhancement Project) */
 
-#define SYS_VERSION "v3.7a"
+#define SYS_VERSION "v3.7b"
 #define SYS_NAME "FreeDOS System Installer "
 
 
@@ -48,45 +48,34 @@
 #endif
 
 #include <stdlib.h>
-#include <dos.h>
 #include <ctype.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#ifdef __TURBOC__
-#include <mem.h>
-#else
-#include <memory.h>
-#endif
 #include <string.h>
-#ifdef __TURBOC__
-#include <dir.h>
-#endif
+
+#include <dos.h>
 #define SYS_MAXPATH   260
 #include "portab.h"
 #include "algnbyte.h"
 #include "device.h"
 #include "dcb.h"
-#include "xstructs.h"
-#include "date.h"
-#include "../hdr/time.h"
 #include "fat.h"
 
+#ifdef _WIN32
+#include <stdio.h>
+#else
 /* These definitions deliberately put here instead of
  * #including <stdio.h> to make executable MUCH smaller
  * using [s]printf from prf.c!
  */
 extern int VA_CDECL printf(CONST char FAR * fmt, ...);
 extern int VA_CDECL sprintf(char FAR * buff, CONST char FAR * fmt, ...);
-
+#endif
 
 #ifndef __WATCOMC__
 #include <io.h>
 #else
-/* some non-conforming functions to make the executable smaller */
-int open(const char *pathname, int flags, ...);
-int read(int fd, void *buf, unsigned count);
-int write(int fd, const void *buf, unsigned count);
-#define close _dos_close
+int stat(const char *file_name, struct stat *statbuf);
 #endif
 
 

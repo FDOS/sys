@@ -88,8 +88,10 @@ CONST char * msgDOS[DOSFLAVORS] = {  /* order should match above items */
 };
 
 
+#ifdef WIN32
+#define getcurdrive -1+(unsigned)_getdrive
+#else
 #ifndef __WATCOMC__
-#include <io.h>
 /* returns current DOS drive, A=0, B=1,C=2, ... */
 #ifdef __TURBOC__
 #define getcurdrive (unsigned)getdisk
@@ -110,6 +112,7 @@ unsigned getcurdrive(void);
       "int 0x21"          \
       "xor ah, ah"        \
       value [ax];
+#endif
 #endif
 
 
