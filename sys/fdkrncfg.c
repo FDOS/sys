@@ -13,7 +13,7 @@
 *  merged into SYS by tom ehlert                                                                        *
 ***************************************************************************/
 
-char VERSION[] = "v1.01";
+char VERSION[] = "v1.02";
 char PROGRAM[] = "SYS CONFIG";
 char KERNEL[] = "KERNEL.SYS";
 
@@ -121,6 +121,10 @@ int readConfigSettings(int kfile, char *kfilename, KernelConfig * cfg)
     exit(1);
   }
 
+  /* check if config settings old UPX header and adjust */
+  if (cfg->ConfigSize == 19)
+    cfg->ConfigSize = 14;  /* ignore 'nused87654321' */
+
   return 1;
 }
 
@@ -146,38 +150,51 @@ void displayConfigSettings(KernelConfig * cfg)
 {
   /* print known options and current value - only if available */
 
+  /* show kernel version if available, read only, no option to modify */
+  if (cfg->ConfigSize >= 20)
+  {
+    printf
+        ("%s kernel %s (build %d.%d OEM:%02X)\n", 
+        (cfg->Version_OemID == 0xFD)?"FreeDOS":"DOS-C",
+        cfg->Version_Release?"SVN":"Release",
+        cfg->Version_Major,
+        cfg->Version_Revision,
+        cfg->Version_OemID
+        );
+  }
+
   if (cfg->ConfigSize >= 1)
   {
     printf
-        ("DLASORT=0x%02X              Sort disks by drive order: *0=no, 1=yes\n",
+        ("DLASORT=0x%02X              Sort disks by drive order:  *0=no, 1=yes\n",
          cfg->DLASortByDriveNo);
   }
 
   if (cfg->ConfigSize >= 2)
   {
     printf
-        ("SHOWDRIVEASSIGNMENT=0x%02X  Show how drives assigned:  *1=yes 0=no\n",
+        ("SHOWDRIVEASSIGNMENT=0x%02X  Show how drives assigned:   *1=yes 0=no\n",
          cfg->InitDiskShowDriveAssignment);
   }
 
   if (cfg->ConfigSize >= 3)
   {
     printf
-        ("SKIPCONFIGSECONDS=%-3d     time to wait for F5/F8 :   *2 sec (skip < 0)\n",
+        ("SKIPCONFIGSECONDS=%-3d     time to wait for F5/F8:     *2 sec (skip < 0)\n",
          cfg->SkipConfigSeconds);
   }
 
   if (cfg->ConfigSize >= 4)
   {
     printf
-        ("FORCELBA=0x%02X            Always use LBA if possible: *0=no, 1=yes\n",
+        ("FORCELBA=0x%02X             Always use LBA if possible: *0=no, 1=yes\n",
          cfg->ForceLBA);
   }
 
   if (cfg->ConfigSize >= 5)
   {
     printf
-        ("GLOBALENABLELBASUPPORT=0x%02X Enable LBA support:      *1=yes, 0=no\n",
+        ("GLOBALENABLELBASUPPORT=0x%02X Enable LBA support:       *1=yes, 0=no\n",
          cfg->GlobalEnableLBAsupport);
   }
 
@@ -346,6 +363,7 @@ int FDKrnConfigMain(int argc, char **argv)
   char *kfilename = KERNEL;
   int kfile;
   int updates = 0;              /* flag used to indicate if we need to update kernel */
+  int readonly = 0;             /* flag indicates kernel was opened read-only */
   int argstart, i;
   char *cptr;
   char *argptr;
@@ -402,7 +420,14 @@ int FDKrnConfigMain(int argc, char **argv)
   kfile = open(kfilename, O_RDWR | O_BINARY);
 
   if (kfile < 0)
-    printf("Error: unable to open kernel file <%s>\n", kfilename), exit(1);
+  {
+    /* attempt to open read only to allow viewing options */
+    kfile = open(kfilename, O_RDONLY  | O_BINARY);
+    readonly = 1;
+
+    if (kfile < 0)
+      printf("Error: unable to open kernel file <%s>\n", kfilename), exit(1);
+  }
 
   /* now that we know the filename (default or given) get config info */
   readConfigSettings(kfile, kfilename, &cfg);
@@ -456,8 +481,16 @@ int FDKrnConfigMain(int argc, char **argv)
     }
   }
 
+  /* warn user if attempt to modify read-only file */
+  if (updates && readonly)
+  {
+      printf("Kernel %s opened read-only, changes ignored!\n", kfilename);
+      /* reload current settings, ignore newly requested ones */
+      readConfigSettings(kfile, kfilename, &cfg);
+  }
+
   /* write out new config values if modified */
-  if (updates)
+  if (updates && !readonly)
   {
     /* update it */
     if (writeConfigSettings(kfile, &cfg))
