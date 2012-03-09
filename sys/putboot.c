@@ -167,14 +167,15 @@ void setFilename(char *buffer, char const *filename)
 
 #ifdef WITHOEMCOMPATBS
 /* for FAT12/16 rearranges root directory so kernel & dos files are 1st two entries */
-void updateRootDir(ULONG rootSector, UCOUNT rootDirSectors, char const *kernel, char const *dos)
+void updateRootDir(ULONG rootSector, UCOUNT rootDirSectors, SYSOptions *opts)
 {
   struct dirent *dir;
   struct lfn_entry *lfn;
   BYTE buffer[SEC_SIZE];
   BYTE filename[11];
   
-  setFilename(filename, kernel);
+  //opts->kernel.kernel, opts->kernel.dos
+  setFilename(filename, opts->kernel.kernel);
   // read in sector
   if (MyAbsReadWrite(opts->dstDrive, 1, rootSector, buffer, 0) != 0)
   {
@@ -185,6 +186,7 @@ void updateRootDir(ULONG rootSector, UCOUNT rootDirSectors, char const *kernel, 
   dir = (struct dirent *)buffer;
   lfn = (struct lfn_entry *)dir;
   if ((void*)dir == (void*)lfn) dir = (void *)lfn;
+
 }
 #endif
 
@@ -669,9 +671,9 @@ void put_boot(SYSOptions *opts)
     
 #ifdef WITHOEMCOMPATBS
     /* if OEM and FAT12/16 then update root directory as well */
-    if ((fs != FAT32) && !opts->kernel.stdbs)
+    if ((fs == FAT12 || fs == FAT16) && !opts->kernel.stdbs)
     {
-      updateRootDir(rootSector, rootDirSectors, opts->kernel.kernel, opts->kernel.dos);
+      updateRootDir(rootSector, rootDirSectors, opts);
     }
 #endif
 
