@@ -28,13 +28,6 @@
 /* Cambridge, MA 02139, USA.                                    */
 /****************************************************************/
 
-#ifdef MAIN
-#ifdef VERSION_STRINGS
-static char *portab_hRcsId =
-    "$Id: portab.h,v 1.1 2009-07-10 14:59:02 perditionc Exp $";
-#endif
-#endif
-
 #include <limits.h>
 
 /****************************************************************/
