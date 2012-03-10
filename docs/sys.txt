@@ -13,9 +13,9 @@ The best documentation is the source itself, but
 we try to keep this document updated.
 
 
-Usage: SYS [source] drive: [bootsect] [{option}]
+Usage: SYS [source] drive [bootsect] [{option}]
   source   = A:,B:,C:\KERNEL\BIN\,etc., or current directory if not given
-  dest     = drive (A:,B:,C:,... or A,B,C,...) to install system to
+  drive    = drive letter (A:,B:,C:,... or A,B,C,...) to install system to
   bootsect = name of 512-byte boot sector file image for drive:
              to write to *instead* of real boot sector
   {option} is one or more of the following:
@@ -53,9 +53,9 @@ SYS CONFIG /help
 
 The simplest usage:
 
-SYS dest:
+SYS drive
 
-dest should be the drive (A:, B:, C:, ...) you wish
+drive should be the drive (A:, B:, C:, ...) you wish
 to be bootable with FreeDOS (kernel & command.com)
 When using this form, KERNEL.SYS and COMMAND.COM
 must reside either in the current directory (which
@@ -64,9 +64,9 @@ be in the root directory of the current drive.
 
 Complete form:
 
-SYS [source] dest: [bootsect [/BOTH]]
+SYS [source] drive [bootsect [/BOTH]]
 
-Here dest is the same as before, but this time
+Here drive is the same as before, but this time
 you specify where KERNEL.SYS and COMMAND.COM are.
 Source may simply be a drive (in this case it
 is similar to PC & MS SYS).  The current directory
