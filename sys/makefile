@@ -6,7 +6,7 @@
 
 !include "../mkfiles/generic.mak"
 
-DOS_FILES=diskio_d.c prf.c talloc.c
+DOS_FILES=diskio_d.c prf.c talloc.c getenv.c
 
 SYS_C=sys.c usage.c initopts.c fdkrncfg.c putboot.c copy.c $(DOS_FILES)
 

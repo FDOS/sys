@@ -29,7 +29,42 @@
 #include "sys.h"
 #include "diskio.h"
 
+void reset_drive(int DosDrive);
+int generic_block_ioctl(unsigned drive, unsigned cx, unsigned char *par);
+
 #ifdef __WATCOMC__
+#pragma aux haveLBA =  \
+      "mov ax, 0x4100"  /* IBM/MS Int 13h Extensions - installation check */ \
+      "mov bx, 0x55AA" \
+      "mov dl, 0x80"   \
+      "int 0x13"       \
+      "xor ax, ax"     \
+      "cmp bx, 0xAA55" \
+      "jne quit"       \
+      "and cx, 1"      \
+      "xchg cx, ax"    \
+"quit:"                \
+      modify [bx cx dx]   \
+      value [ax];
+      
+#pragma aux reset_drive "*_" = \
+      "push ds" \
+      "inc dx" \
+      "mov ah, 0xd" \ 
+      "int 0x21" \
+      "mov ah,0x32" \
+      "int 0x21" \
+      "pop ds" \
+      parm [dx] \
+      modify [ax bx];
+
+#pragma aux generic_block_ioctl = \
+      "mov ax, 0x440d" \
+      "int 0x21" \
+      "sbb ax, ax" \
+      value [ax] \
+      parm [bx] [cx] [dx]; /* BH must be 0 for lock! */
+
 
 int absread(int DosDrive, int nsects, int foo, void *diskReadPacket);
 #pragma aux absread =  \

@@ -32,7 +32,7 @@
 #define FDCONFIG              /* include support to configure FD kernel */
 /* #define DRSYS */           /* SYS for Enhanced DR-DOS (OpenDOS enhancement Project) */
 
-#define SYS_VERSION "v3.7b"
+#define SYS_VERSION "v3.8"
 #define SYS_NAME "FreeDOS System Installer "
 
 

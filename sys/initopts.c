@@ -535,16 +535,25 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
   /* if updating or only setting bootsector then skip this check */
   if (opts->copyShell)
   {
-    /* lastly check for command interpreter */
+    /* lastly check for command interpreter, 1st try source path, then try %COMSPEC% */
     sprintf(srcFile, "%s%s", opts->srcDrive, (opts->fnCmd)?opts->fnCmd:"COMMAND.COM");
     if (stat(srcFile, &fstatbuf))  /* if !exists() */
     {
       char *comspec = getenv("COMSPEC");
+      /* don't use comspec if shell filename specified, comspec env var not found, or file pointed to not exists */
       if (opts->fnCmd || (comspec == NULL) || stat(comspec, &fstatbuf))
       {
         printf("%s: failed to find command interpreter (shell) file %s\n", pgm, srcFile);
         exit(1);
       }
+      else
+      {
+          printf("%s: Using shell from %%COMSPEC%%=\"%s\"\n", pgm, comspec);
+          opts->fnCmd = strdup(comspec);  /* note: memory never free'd, but that's ok */
+      }
     }
-  }
+    else
+        opts->fnCmd = strdup(srcFile); /* store full path to command shell to use; note: memory never free'd */
+  } /* copy shell */
+
 }

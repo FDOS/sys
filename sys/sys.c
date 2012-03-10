@@ -28,33 +28,6 @@
 
 #include "sys.h"
 
-
-#ifdef __WATCOMC__
-/* WATCOM's getenv is case-insensitive which wastes a lot of space
-   for our purposes. So here's a simple case-sensitive one */
-char *getenv(const char *name)
-{
-  char **envp, *ep;
-  const char *np;
-  char ec, nc;
-
-  for (envp = environ; (ep = *envp) != NULL; envp++) {
-    np = name;
-    do {
-      ec = *ep++;
-      nc = *np++;
-      if (nc == 0) {
-        if (ec == '=')
-          return ep;
-        break;
-      }
-    } while (ec == nc);
-  }
-  return NULL;
-}
-#endif
-
-
 BYTE pgm[] = "SYS";
 
 
@@ -103,18 +76,11 @@ int main(int argc, char **argv)
   {
     printf("Copying shell (command interpreter)...\n");
   
-    /* copy command.com, 1st try source path, then try %COMSPEC% */
-    sprintf(srcFile, "%s%s", opts.srcDrive, (opts.fnCmd)?opts.fnCmd:"COMMAND.COM");
-    if (!copy(srcFile, opts.dstDrive, "COMMAND.COM"))
+    /* full source path+name including possible use of COMSPEC determined during initOptions processing */
+    if (!copy(opts.fnCmd, opts.dstDrive, "COMMAND.COM"))
     {
-      char *comspec = getenv("COMSPEC");
-      if (!opts.fnCmd && (comspec != NULL))
-        printf("%s: Trying shell from %%COMSPEC%%=\"%s\"\n", pgm, comspec);
-      if (opts.fnCmd || (comspec == NULL) || !copy(comspec, opts.dstDrive, "COMMAND.COM"))
-      {
-        printf("\n%s: failed to find command interpreter (shell) file %s\n", pgm, (opts.fnCmd)?opts.fnCmd:"COMMAND.COM");
-        exit(1);
-      }
+      printf("\n%s: failed to copy command interpreter (shell) file %s\n", pgm, opts.fnCmd);
+      exit(1);
     } /* copy shell */
   }
 
