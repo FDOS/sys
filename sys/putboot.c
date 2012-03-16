@@ -116,7 +116,6 @@ struct VerifyBootSectorSize {
 };
 
 
-
 #ifdef DDEBUG
 VOID dump_sector(unsigned char far * sec)
 {
@@ -165,6 +164,114 @@ void setFilename(char *buffer, char const *filename)
 }
 
 
+typedef enum {read_bs = 0, write_bs = 1} readWriteMode;
+
+/* reads or writes boot sector (1st SEC_SIZE bytes) from file */
+static void read_write_BS_file(const char *bsFile, UBYTE *bootsector, readWriteMode mode)
+{
+  if (bsFile != NULL)
+  {
+    int fd;
+
+#ifdef DEBUG
+    printf("%s bootsector %s file %s\n", mode?"writing":"reading", mode?"to":"from", bsFile);
+#endif
+
+    /* open boot sector file */
+    if (mode) /* write mode, create if not exists but don't truncate so only 1st SEC_SIZE bytes overwritten */
+      fd = open(bsFile, O_WRONLY | O_CREAT | O_BINARY, S_IREAD | S_IWRITE);
+    else /* read mode, file must exist */
+    /* open boot sector file, it must exists */
+        fd = open(bsFile, O_RDONLY | O_BINARY);
+    if (fd < 0)
+    {
+      printf("%s: can't open\"%s\"\nDOS errnum %d", pgm, bsFile, errno);
+      exit(1);
+    }
+    /* read/write only SEC_SIZE bytes to support reading/writing from both
+       boot sector files and raw disk images
+    */
+    if ((mode?write(fd, bootsector, SEC_SIZE):read(fd, bootsector, SEC_SIZE)) != SEC_SIZE)
+    {
+      printf("%s: failed to %s %u bytes from %s\n", pgm, mode?"write":"read", SEC_SIZE, bsFile);
+      close(fd);
+      /* unlink(bsFile); don't delete in case was image */
+      exit(1);
+    }
+    /* we are done, so close file */
+    close(fd);
+  }
+}
+
+/* reads in boot sector (1st SEC_SIZE bytes) from file */
+#define readBS(bsFile, bootsector) read_write_BS_file(bsFile, bootsector, read_bs)
+/* write bootsector to file bsFile */
+#define saveBS(bsFile, bootsector) read_write_BS_file(bsFile, bootsector, write_bs)
+
+
+/* reads or writes boot sector (1st SEC_SIZE bytes) to/from drive */
+void read_write_BS_drive(unsigned drive, UBYTE *bootsector, readWriteMode mode, ULONG sector)
+{
+  #ifdef DDEBUG
+  const char *msg = "%s sector %lu on drive %c:\n";
+
+  if (mode==write_bs)
+  {
+    printf(msg, "Writing to", sector, drive + 'A');
+    dump_sector(bootsector);
+  }
+  #endif
+
+  /* obtain exclusive access to drive */
+  lockDrive(drive);
+
+  /* suggestion: allow reading from a boot sector or image file here */
+  /* read/write bootsector to drive */
+  if (MyAbsReadWrite(drive, 1, sector, bootsector, mode?1:0) != 0)
+  {
+    printf("%s: failed to %s sector %lu on drive %c:\n", pgm, mode?"write":"read", sector, drive + 'A');
+    exit(1);
+  }
+
+  /* release lock */
+  unLockDrive(drive);
+
+  #ifdef DDEBUG
+  if (mode==read_bs)
+  {
+    printf(msg, "Read from", sector, drive + 'A');
+    dump_sector(bootsector);
+  }
+  #endif
+}
+
+/* reads in boot sector (1st SEC_SIZE bytes) from drive */
+#define readDriveBS(drive, bootsector) read_write_BS_drive(drive, bootsector, read_bs, 0)
+/* write bootsector to (1st SEC_SIZE bytes) of drive */
+#define saveDriveBS(drive, bootsector) read_write_BS_drive(drive, bootsector, write_bs, 0)
+
+/* writes boot sector (1st SEC_SIZE bytes) to drive */
+void saveDriveBackupBS(unsigned drive, UBYTE *bootsector, BOOL verbose)
+{
+#ifdef WITHFAT32
+    /* for FAT32, we need to update the backup copy as well */
+    /* unless user has asked us not to, eg for better dual boot support */
+    /* Note: assuming sectors 1-5 & 7-11 (FSINFO+additional boot code)
+       are properly setup by prior format and need no modification
+       [technically freespace, etc. should be updated]
+    */
+    if (fs == FAT32)
+    {
+      struct bootsectortype32 *bs32 = (struct bootsectortype32 *)bootsector;
+      if (verbose)
+        printf("Writing backup bootsector to sector %d\n", bs32->bsBackupBoot);
+      read_write_BS_drive(drive, bootsector, write_bs, bs32->bsBackupBoot);
+    }
+#endif 
+}
+
+
+
 #ifdef WITHOEMCOMPATBS
 /* for FAT12/16 rearranges root directory so kernel & dos files are 1st two entries */
 void updateRootDir(ULONG rootSector, UCOUNT rootDirSectors, SYSOptions *opts)
@@ -191,9 +298,28 @@ void updateRootDir(ULONG rootSector, UCOUNT rootDirSectors, SYSOptions *opts)
 #endif
 
 
-void correct_bpb(struct bootsectortype *default_bpb,
-                 struct bootsectortype *oldboot, BOOL verbose)
+/* modify CHS information in boot sector to match existing values;
+   mainly for hard drives so matches different BIOS settings
+*/
+void correct_bpb(FileSystem fs, unsigned drive, struct bootsectortype *oldboot, BOOL verbose)
 {
+  UBYTE default_bpb_buffer[0x5c];
+  struct bootsectortype *default_bpb;
+
+  /* bit 0 set if function to use current BPB, clear if Device
+           BIOS Parameter Block field contains new default BPB
+     bit 1 set if function to use track layout fields only
+           must be clear if CL=60h
+     bit 2 set if all sectors in track same size (should be set) (RBIL) */
+  default_bpb_buffer[0] = 4;
+
+  /* don't change bpb for floppies, otherwise get default bpb (no changes on error) */
+  if (drive < 2 || getDeviceParms(drive, fs, default_bpb_buffer) != 0)
+      return;
+  /* bpb returned beginning at byte 7 (+7), without the initial jump and and oemname field (-11) */
+  default_bpb = (struct bootsectortype *)(default_bpb_buffer + 7 - 11);
+
+
   /* don't touch partitions (floppies most likely) that don't have hidden
      sectors */
   if (default_bpb->bsHiddenSecs == 0)
@@ -203,7 +329,7 @@ void correct_bpb(struct bootsectortype *default_bpb,
   {
     printf("Old boot sector values: sectors/track: %u, heads: %u, hidden: %lu\n",
            oldboot->bsSecPerTrack, oldboot->bsHeads, oldboot->bsHiddenSecs);
-    printf("Default and new boot sector values: sectors/track: %u, heads: %u, "
+    printf("Using default boot sector values: sectors/track: %u, heads: %u, "
            "hidden: %lu\n", default_bpb->bsSecPerTrack, default_bpb->bsHeads,
            default_bpb->bsHiddenSecs);
   }
@@ -214,140 +340,14 @@ void correct_bpb(struct bootsectortype *default_bpb,
 }
 
 
-/* reads in boot sector (1st SEC_SIZE bytes) from file */
-void readBS(const char *bsFile, UBYTE *bootsector)
-{
-  if (bsFile != NULL)
-  {
-    int fd;
-
-#ifdef DEBUG
-    printf("reading bootsector from file %s\n", bsFile);
-#endif
-
-    /* open boot sector file, it must exists, then overwrite
-       drive with 1st SEC_SIZE bytes from the [image] file
-    */
-    if ((fd = open(bsFile, O_RDONLY | O_BINARY)) < 0)
-    {
-      printf("%s: can't open\"%s\"\nDOS errnum %d", pgm, bsFile, errno);
-      exit(1);
-    }
-    if (read(fd, bootsector, SEC_SIZE) != SEC_SIZE)
-    {
-      printf("%s: failed to read %u bytes from %s\n", pgm, SEC_SIZE, bsFile);
-      close(fd);
-      exit(1);
-    }
-    close(fd);
-  }
-}
-
-/* write bs in bsFile to drive's boot record unmodified */
-void restoreBS(const char *bsFile, int drive)
-{
-  UBYTE bootsector[SEC_SIZE];
-
-  if (bsFile == NULL)
-  {
-    printf("%s: missing filename of boot sector to restore\n", pgm);
-    exit(1);
-  }
-
-  readBS(bsFile, bootsector);
-
-  /* lock drive */
-  generic_block_ioctl(drive + 1, 0x84a, NULL);
-
-  reset_drive(drive);
-
-  /* write bootsector to drive */
-  if (MyAbsReadWrite(drive, 1, 0, bootsector, 1) != 0)
-  {
-    printf("%s: failed to write boot sector to drive %c:\n", pgm, drive + 'A');
-    exit(1);
-  }
-
-  reset_drive(drive);
-
-  /* unlock_drive */
-  generic_block_ioctl(drive + 1, 0x86a, NULL);
-}
-
-/* write bootsector to file bsFile */
-void saveBS(const char *bsFile, UBYTE *bootsector)
-{
-  if (bsFile != NULL)
-  {
-    int fd;
-
-#ifdef DEBUG
-    printf("writing bootsector to file %s\n", bsFile);
-#endif
-
-    /* open boot sector file, create it if not exists,
-       but don't truncate if exists so we can replace
-       1st SEC_SIZE bytes of an image file
-    */
-    if ((fd = open(bsFile, O_WRONLY | O_CREAT | O_BINARY,
-              S_IREAD | S_IWRITE)) < 0)
-    {
-      printf("%s: can't create\"%s\"\nDOS errnum %d", pgm, bsFile, errno);
-      exit(1);
-    }
-    if (write(fd, bootsector, SEC_SIZE) != SEC_SIZE)
-    {
-      printf("%s: failed to write %u bytes to %s\n", pgm, SEC_SIZE, bsFile);
-      close(fd);
-      /* unlink(bsFile); don't delete in case was image */
-      exit(1);
-    }
-    close(fd);
-  } /* if write boot sector file */
-}
-
-/* write drive's boot record unmodified to bsFile */
-void dumpBS(const char *bsFile, int drive)
-{
-  UBYTE bootsector[SEC_SIZE];
-
-  if (bsFile == NULL)
-  {
-    printf("%s: missing filename to dump boot sector to\n", pgm);
-    exit(1);
-  }
-
-  /* lock drive */
-  generic_block_ioctl(drive + 1, 0x84a, NULL);
-
-  reset_drive(drive);
-
-  /* suggestion: allow reading from a boot sector or image file here */
-  if (MyAbsReadWrite(drive, 1, 0, bootsector, 0) != 0)
-  {
-    printf("%s: failed to read boot sector for drive %c:\n", pgm, drive + 'A');
-    exit(1);
-  }
-
-  reset_drive(drive);
-
-  /* unlock_drive */
-  generic_block_ioctl(drive + 1, 0x86a, NULL);
-
-  saveBS(bsFile, bootsector);
-}
-
-
-
-void put_boot(SYSOptions *opts)
+/* reads in current (old) boot sector, determine filesystem, and update CHS portion of BPB */
+FileSystem get_old_bs(SYSOptions *opts, UBYTE oldboot[])
 {
 #ifdef WITHFAT32
   struct bootsectortype32 *bs32;
 #endif
   struct bootsectortype *bs;
-  UBYTE oldboot[SEC_SIZE], newboot[SEC_SIZE];
-  UBYTE default_bpb[0x5c];
-  int bsBiosMovOff;  /* offset in bs to mov [drive],dl that we NOP out */
+  FileSystem fs;
 
   /* for OEM kernels, ensure 1st two root dir entries correspond with kernel files */
   ULONG rootSector; /* first data sector, for FAT12/16 also 1st sector of root directory */
@@ -355,33 +355,20 @@ void put_boot(SYSOptions *opts)
   
   if (opts->verbose)
   {
-    printf("Reading old bootsector from drive %c:\n", opts->dstDrive + 'A');
+    printf("Reading current bootsector from drive %c:\n", opts->dstDrive + 'A');
   }
 
-  /* lock drive */
-  generic_block_ioctl(opts->dstDrive + 1, 0x84a, NULL);
-
-  reset_drive(opts->dstDrive);
-
-  /* suggestion: allow reading from a boot sector or image file here */
-  if (MyAbsReadWrite(opts->dstDrive, 1, 0, oldboot, 0) != 0)
-  {
-    printf("%s: can't read old boot sector for drive %c:\n", pgm, opts->dstDrive + 'A');
-    exit(1);
-  }
-
-#ifdef DDEBUG
-  printf("Old Boot Sector:\n");
-  dump_sector(oldboot);
-#endif
+  /* get current boot sector */
+  readDriveBS(opts->dstDrive, oldboot);
 
   /* backup original boot sector when requested */
   if (opts->bsFileOrig)
   {
-    printf("Backing up original boot sector to %s\n", opts->bsFileOrig);
+    printf("Backing up current boot sector to %s\n", opts->bsFileOrig);
     saveBS(opts->bsFileOrig, oldboot);
   }
 
+  /* alias bs structure to our sector buffer */
   bs = (struct bootsectortype *)&oldboot;
 
   if (bs->bsBytesPerSec != SEC_SIZE)
@@ -417,20 +404,20 @@ void put_boot(SYSOptions *opts)
       fs = FAT32;      
   }
 
-  /* bit 0 set if function to use current BPB, clear if Device
-           BIOS Parameter Block field contains new default BPB
-     bit 1 set if function to use track layout fields only
-           must be clear if CL=60h
-     bit 2 set if all sectors in track same size (should be set) (RBIL) */
-  default_bpb[0] = 4;
+  correct_bpb(fs, opts->dstDrive, bs, opts->verbose);
 
+
+  return fs;
+}
+
+/* copies appropriate boot code into newboot based on file system and options,
+   determines if chs, lba, or both are used
+*/
+void get_new_bs(FileSystem fs, SYSOptions *opts, UBYTE newboot[])
+{
   if (fs == FAT32)
   {
     printf("FAT type: FAT32\n");
-    /* get default bpb (but not for floppies) */
-    if (opts->dstDrive >= 2 &&
-        generic_block_ioctl(opts->dstDrive + 1, 0x4860, default_bpb) == 0)
-      correct_bpb((struct bootsectortype *)(default_bpb + 7 - 11), bs, opts->verbose);
 
 #ifdef WITHFAT32                /* copy one of the FAT32 boot sectors */
     if (!opts->kernel.stdbs)    /* MS/PC DOS compatible BS requested */
@@ -454,9 +441,6 @@ void put_boot(SYSOptions *opts)
   else
   { /* copy the FAT12/16 CHS+LBA boot sector */
     printf("FAT type: FAT1%c\n", fs + '0' - 10);
-    if (opts->dstDrive >= 2 &&
-        generic_block_ioctl(opts->dstDrive + 1, 0x860, default_bpb) == 0)
-      correct_bpb((struct bootsectortype *)(default_bpb + 7 - 11), bs, opts->verbose);
 
     if (opts->kernel.stdbs)
     {
@@ -499,23 +483,30 @@ void put_boot(SYSOptions *opts)
 #endif
     }
   }
+}
 
-  /* Copy disk parameter from old sector to new sector */
+
+/* Copy disk parameter from old sector to new sector */
+void copy_disk_parameters(FileSystem fs, UBYTE oldboot[], UBYTE newboot[])
+{
 #ifdef WITHFAT32
   if (fs == FAT32)
     memcpy(&newboot[SBOFFSET], &oldboot[SBOFFSET], SBSIZE32);
   else
 #endif
     memcpy(&newboot[SBOFFSET], &oldboot[SBOFFSET], SBSIZE);
+}
 
-  bs = (struct bootsectortype *)&newboot;
 
-  /* originally OemName was "FreeDOS", changed for better compatibility */
-  memcpy(bs->OemName, "FRDOS5.1", 8); /* Win9x seems to require
-                                         5 uppercase letters,
-                                         digit(4 or 5) dot digit */
+/* based on user options, patch portions of boot sector */
+void patch_bs(FileSystem fs, SYSOptions *opts, UBYTE newboot[])
+{
+  int bsBiosMovOff;  /* offset in bs to mov [drive],dl that we NOP out */
+  struct bootsectortype *bs = (struct bootsectortype *)&newboot;
 
 #ifdef WITHFAT32
+  struct bootsectortype32 *bs32;
+
   if (fs == FAT32)
   {
     bs32 = (struct bootsectortype32 *)&newboot;
@@ -610,16 +601,12 @@ void put_boot(SYSOptions *opts)
     }
   }
 
-  if (opts->verbose) /* display information about filesystem */
-  {
-  printf("Root dir entries = %u\n", bs->bsRootDirEnts);
+  /* originally OemName was "FreeDOS", changed for better compatibility */
+  memcpy(bs->OemName, "FRDOS5.1", 8); /* Win9x seems to require
+                                         5 uppercase letters,
+                                         digit(4 or 5) dot digit */
 
-  printf("FAT starts at sector (%lu + %u)\n",
-         bs->bsHiddenSecs, bs->bsResSectors);
-  printf("Root directory starts at sector (PREVIOUS + %u * %u)\n",
-         bs->bsFATsecs, bs->bsFATs);
-  }
-  
+  /* set filename of kernel (file) to load */
   setFilename(&newboot[0x1f1], opts->kernel.kernel);
 
   if (opts->verbose)
@@ -631,49 +618,83 @@ void put_boot(SYSOptions *opts)
     else
       printf("Boot sector kernel jmp address set to 70:%Xh\n", opts->kernel.loadaddr);
   }
+}
 
-#ifdef DDEBUG
-  printf("\nNew Boot Sector:\n");
-  dump_sector(newboot);
-#endif
+
+
+/* write bs in bsFile to drive's boot record unmodified */
+void restoreBS(const char *bsFile, int drive)
+{
+  UBYTE bootsector[SEC_SIZE];
+
+  if (bsFile == NULL)
+  {
+    printf("%s: missing filename of boot sector to restore\n", pgm);
+    exit(1);
+  }
+
+  readBS(bsFile, bootsector);
+  saveDriveBS(drive, bootsector);
+}
+
+/* write drive's boot record unmodified to bsFile */
+void dumpBS(const char *bsFile, int drive)
+{
+  UBYTE bootsector[SEC_SIZE];
+
+  if (bsFile == NULL)
+  {
+    printf("%s: missing filename to dump boot sector to\n", pgm);
+    exit(1);
+  }
+
+  readDriveBS(drive, bootsector);
+  saveBS(bsFile, bootsector);
+}
+
+
+/* determines correct boot sector, patches, backup, and write new boot sector */
+void put_boot(SYSOptions *opts)
+{
+  UBYTE oldboot[SEC_SIZE], newboot[SEC_SIZE];
+
+  /* read existing boot sector to get BPB from previously formatted volume */
+  fs = get_old_bs(opts, oldboot);
+  /* determine which built-in boot code to install based on kernel and other options */
+  get_new_bs(fs, opts, newboot);
+  /* copy over BPB information so we can write it back again */
+  copy_disk_parameters(fs, oldboot, newboot);
+  /* update boot sector based on options selected */
+  patch_bs(fs, opts, newboot);
+
+  if (opts->verbose) /* display information about filesystem */
+  {
+  struct bootsectortype *bs;
+  bs = (struct bootsectortype *)&newboot;
+  printf("Root dir entries = %u\n", bs->bsRootDirEnts);
+
+  printf("FAT starts at sector (%lu + %u)\n",
+         bs->bsHiddenSecs, bs->bsResSectors);
+  printf("Root directory starts at sector (PREVIOUS + %u * %u)\n",
+         bs->bsFATsecs, bs->bsFATs);
+  }
+  
 
   if (opts->writeBS)
   {
-#ifdef DEBUG
-    printf("Writing new bootsector to drive %c:\n", opts->dstDrive + 'A');
-#endif
+    if (opts->verbose)
+      printf("Writing new bootsector to drive %c:\n", opts->dstDrive + 'A');
 
     /* write newboot to a drive */
-    if (MyAbsReadWrite(opts->dstDrive, 1, 0, newboot, 1) != 0)
-    {
-      printf("Can't write new boot sector to drive %c:\n", opts->dstDrive + 'A');
-      exit(1);
-    }
-    
-    /* for FAT32, we need to update the backup copy as well */
-    /* unless user has asked us not to, eg for better dual boot support */
-    /* Note: assuming sectors 1-5 & 7-11 (FSINFO+additional boot code)
-       are properly setup by prior format and need no modification
-       [technically freespace, etc. should be updated]
-    */
-    if ((fs == FAT32) && !opts->skipBakBSCopy)
-    {
-      bs32 = (struct bootsectortype32 *)&newboot;
-#ifdef DEBUG
-      printf("writing backup bootsector to sector %d\n", bs32->bsBackupBoot);
-#endif
-      if (MyAbsReadWrite(opts->dstDrive, 1, bs32->bsBackupBoot, newboot, 1) != 0)
-      {
-        printf("Can't write backup boot sector to drive %c:\n", opts->dstDrive + 'A');
-        exit(1);
-      }
-    }
+    saveDriveBS(opts->dstDrive, newboot);
+    if (!opts->skipBakBSCopy)
+        saveDriveBackupBS(opts->dstDrive, newboot, opts->verbose);
     
 #ifdef WITHOEMCOMPATBS
     /* if OEM and FAT12/16 then update root directory as well */
     if ((fs == FAT12 || fs == FAT16) && !opts->kernel.stdbs)
     {
-      updateRootDir(rootSector, rootDirSectors, opts);
+      //updateRootDir(rootSector, rootDirSectors, opts);
     }
 #endif
 
@@ -682,13 +703,9 @@ void put_boot(SYSOptions *opts)
   if (opts->bsFile != NULL)
   {
     if (opts->verbose)
-      printf("writing new bootsector to file %s\n", opts->bsFile);
+      printf("Writing new bootsector to file %s\n", opts->bsFile);
 
     saveBS(opts->bsFile, newboot);
   } /* if write boot sector to file*/
 
-  reset_drive(opts->dstDrive);
-
-  /* unlock_drive */
-  generic_block_ioctl(opts->dstDrive + 1, 0x86a, NULL);
 } /* put_boot */

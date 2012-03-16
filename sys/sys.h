@@ -139,20 +139,20 @@ void showOemHelpAndExit(void);
 /* get and validate arguments */
 void initOptions(int argc, char *argv[], SYSOptions *opts);
 
-void correct_bpb(struct bootsectortype *default_bpb,
-                 struct bootsectortype *oldboot, BOOL verbose);
-
 
 /* reads in boot sector (1st SEC_SIZE bytes) from file */
-void readBS(const char *bsFile, UBYTE *bootsector);
+//void readBS(const char *bsFile, UBYTE *bootsector);
+/* write bootsector to file bsFile */
+//void saveBS(const char *bsFile, UBYTE *bootsector);
+
 /* write bs in bsFile to drive's boot record unmodified */
 void restoreBS(const char *bsFile, int drive);
-/* write bootsector to file bsFile */
-void saveBS(const char *bsFile, UBYTE *bootsector);
 /* write drive's boot record unmodified to bsFile */
 void dumpBS(const char *bsFile, int drive);
 
+/* installs boot sector */
 void put_boot(SYSOptions *opts);
+
 
 /* copies file (path+filename specified by srcFile) to drive:\filename */
 BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename);

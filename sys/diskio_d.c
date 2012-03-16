@@ -32,21 +32,8 @@
 void reset_drive(int DosDrive);
 int generic_block_ioctl(unsigned drive, unsigned cx, unsigned char *par);
 
+
 #ifdef __WATCOMC__
-#pragma aux haveLBA =  \
-      "mov ax, 0x4100"  /* IBM/MS Int 13h Extensions - installation check */ \
-      "mov bx, 0x55AA" \
-      "mov dl, 0x80"   \
-      "int 0x13"       \
-      "xor ax, ax"     \
-      "cmp bx, 0xAA55" \
-      "jne quit"       \
-      "and cx, 1"      \
-      "xchg cx, ax"    \
-"quit:"                \
-      modify [bx cx dx]   \
-      value [ax];
-      
 #pragma aux reset_drive "*_" = \
       "push ds" \
       "inc dx" \
@@ -242,3 +229,21 @@ int generic_block_ioctl(unsigned drive, unsigned cx, unsigned char *par)
 } /* generic_block_ioctl */
 
 #endif
+
+
+void lockDrive(unsigned drive)
+{
+  generic_block_ioctl(drive + 1, 0x84a, NULL);
+  reset_drive(drive);
+}
+
+void unLockDrive(unsigned drive)
+{
+  reset_drive(drive);
+  generic_block_ioctl(drive + 1, 0x86a, NULL);
+}
+
+int getDeviceParms(unsigned drive, FileSystem fs, unsigned char *buffer)
+{
+  return generic_block_ioctl(drive + 1, (fs==FAT32)?0x4860:0x860, buffer);
+}

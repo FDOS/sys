@@ -40,16 +40,19 @@ int unlink(const char *pathname);
 
 int MyAbsReadWrite(int DosDrive, int count, ULONG sector, void *buffer, int write);
 
-void reset_drive(int DosDrive);
-int generic_block_ioctl(unsigned drive, unsigned cx, unsigned char *par);
+void lockDrive(unsigned drive);
+void unLockDrive(unsigned drive);
+
+/* returns default BPB (and other device parameters) */
+int getDeviceParms(unsigned drive, FileSystem fs, unsigned char *buffer);
+
 /*
  * If BIOS has got LBA extensions, after the Int 13h call BX will be 0xAA55.
  * If extended disk access functions are supported, bit 0 of CX will be set.
  */
 BOOL haveLBA(void);     /* return TRUE if we have LBA BIOS, FALSE otherwise */
 
-#ifndef WIN32
-#ifdef __WATCOMC__
+#if defined __WATCOMC__ && defined __DOS__
 #pragma aux haveLBA =  \
       "mov ax, 0x4100"  /* IBM/MS Int 13h Extensions - installation check */ \
       "mov bx, 0x55AA" \
@@ -63,24 +66,4 @@ BOOL haveLBA(void);     /* return TRUE if we have LBA BIOS, FALSE otherwise */
 "quit:"                \
       modify [bx cx dx]   \
       value [ax];
-      
-#pragma aux reset_drive "*_" = \
-      "push ds" \
-      "inc dx" \
-      "mov ah, 0xd" \ 
-      "int 0x21" \
-      "mov ah,0x32" \
-      "int 0x21" \
-      "pop ds" \
-      parm [dx] \
-      modify [ax bx];
-
-#pragma aux generic_block_ioctl = \
-      "mov ax, 0x440d" \
-      "int 0x21" \
-      "sbb ax, ax" \
-      value [ax] \
-      parm [bx] [cx] [dx]; /* BH must be 0 for lock! */
-
-#endif /* WIN32 */
 #endif
