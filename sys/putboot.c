@@ -250,22 +250,22 @@ void read_write_BS_drive(unsigned drive, UBYTE *bootsector, readWriteMode mode, 
 /* write bootsector to (1st SEC_SIZE bytes) of drive */
 #define saveDriveBS(drive, bootsector) read_write_BS_drive(drive, bootsector, write_bs, 0)
 
-/* writes boot sector (1st SEC_SIZE bytes) to drive */
-void saveDriveBackupBS(unsigned drive, UBYTE *bootsector, BOOL verbose)
+/* writes boot sector to backup location on drive */
+void saveDriveBackupBS(SYSOptions *opts, UBYTE *bootsector)
 {
 #ifdef WITHFAT32
     /* for FAT32, we need to update the backup copy as well */
     /* unless user has asked us not to, eg for better dual boot support */
-    /* Note: assuming sectors 1-5 & 7-11 (FSINFO+additional boot code)
+    /* Note: assuming sectors 1-5 (FSINFO+additional boot code) & 7-11 (backup copy) 
        are properly setup by prior format and need no modification
        [technically freespace, etc. should be updated]
     */
-    if (fs == FAT32)
+    if (opts->fs == FAT32)
     {
       struct bootsectortype32 *bs32 = (struct bootsectortype32 *)bootsector;
-      if (verbose)
+      if (opts->verbose)
         printf("Writing backup bootsector to sector %d\n", bs32->bsBackupBoot);
-      read_write_BS_drive(drive, bootsector, write_bs, bs32->bsBackupBoot);
+      read_write_BS_drive(opts->dstDrive, bootsector, write_bs, bs32->bsBackupBoot);
     }
 #endif 
 }
@@ -369,11 +369,11 @@ FileSystem get_old_bs(SYSOptions *opts, UBYTE oldboot[])
   }
 
   /* alias bs structure to our sector buffer */
-  bs = (struct bootsectortype *)&oldboot;
+  bs = (struct bootsectortype *)oldboot;
 
   if (bs->bsBytesPerSec != SEC_SIZE)
   {
-    printf("Sector size is not 512 but %d bytes - not currently supported!\n",
+    printf("Sector size is not 512 but %u bytes - not currently supported!\n",
       bs->bsBytesPerSec);
     exit(1); /* Japan?! */
   }
@@ -413,8 +413,9 @@ FileSystem get_old_bs(SYSOptions *opts, UBYTE oldboot[])
 /* copies appropriate boot code into newboot based on file system and options,
    determines if chs, lba, or both are used
 */
-void get_new_bs(FileSystem fs, SYSOptions *opts, UBYTE newboot[])
+void get_new_bs(SYSOptions *opts, UBYTE newboot[])
 {
+  register FileSystem fs = opts->fs;
   if (fs == FAT32)
   {
     printf("FAT type: FAT32\n");
@@ -499,7 +500,7 @@ void copy_disk_parameters(FileSystem fs, UBYTE oldboot[], UBYTE newboot[])
 
 
 /* based on user options, patch portions of boot sector */
-void patch_bs(FileSystem fs, SYSOptions *opts, UBYTE newboot[])
+void patch_bs(SYSOptions *opts, UBYTE newboot[])
 {
   int bsBiosMovOff;  /* offset in bs to mov [drive],dl that we NOP out */
   struct bootsectortype *bs = (struct bootsectortype *)&newboot;
@@ -578,7 +579,7 @@ void patch_bs(FileSystem fs, SYSOptions *opts, UBYTE newboot[])
     {
       /* load segment hard coded to 0x70 in oem compatible boot sector, */
       /* this however changes the offset jumped to default 0x70:0       */
-      if (fs == FAT12)
+      if (opts->fs == FAT12)
         ((int *)newboot)[0x11c/sizeof(int)] = opts->kernel.loadaddr;
       else
         ((int *)newboot)[0x119/sizeof(int)] = opts->kernel.loadaddr;
@@ -622,50 +623,91 @@ void patch_bs(FileSystem fs, SYSOptions *opts, UBYTE newboot[])
 
 
 
-/* write bs in bsFile to drive's boot record unmodified */
-void restoreBS(const char *bsFile, int drive)
-{
-  UBYTE bootsector[SEC_SIZE];
-
-  if (bsFile == NULL)
-  {
-    printf("%s: missing filename of boot sector to restore\n", pgm);
-    exit(1);
-  }
-
-  readBS(bsFile, bootsector);
-  saveDriveBS(drive, bootsector);
-}
-
 /* write drive's boot record unmodified to bsFile */
-void dumpBS(const char *bsFile, int drive)
+void dumpBS(SYSOptions *opts)
 {
   UBYTE bootsector[SEC_SIZE];
 
-  if (bsFile == NULL)
-  {
-    printf("%s: missing filename to dump boot sector to\n", pgm);
-    exit(1);
-  }
+  /* load boot code for drive */
+  readDriveBS(opts->dstDrive, bootsector);
 
-  readDriveBS(drive, bootsector);
-  saveBS(bsFile, bootsector);
+  /* write out boot code to file */
+  saveBS(opts->altBSCode, bootsector);
 }
 
+
+/* prepare boot sector and write it to drive's boot record */
+static UBYTE* storeBS(SYSOptions *opts, int updateBPB)
+{
+  static UBYTE newboot[SEC_SIZE];
+  UBYTE oldboot[SEC_SIZE];
+  
+  /* read existing boot sector to get BPB from previously formatted volume */
+  opts->fs = get_old_bs(opts, oldboot);
+
+  /* load new boot code via external file or from compiled in resource */
+  if (opts->altBSCode)
+  {
+    /* load boot code from file */
+    readBS(opts->altBSCode, newboot);
+  } 
+  else
+  {
+    /* determine which built-in boot code to install based on kernel and other options */
+    get_new_bs(opts, newboot);
+  }
+
+  if (updateBPB)
+  {
+    /* copy over BPB information so we can write it back again */
+    copy_disk_parameters(opts->fs, oldboot, newboot);
+  }
+
+  if (!opts->altBSCode)
+  {
+    /* update boot sector based on options selected */
+    patch_bs(opts, newboot);
+  }
+
+  if (opts->writeBS)
+  {
+    if (opts->verbose)
+      printf("Writing new bootsector to drive %c:\n", opts->dstDrive + 'A');
+
+    /* write newboot to a drive */
+    saveDriveBS(opts->dstDrive, newboot);
+    if (!opts->skipBakBSCopy)
+        saveDriveBackupBS(opts, newboot);
+   
+  } /* if write boot sector to boot record*/
+
+  if (opts->bsFile != NULL)
+  {
+    if (opts->verbose)
+      printf("Writing new bootsector to file %s\n", opts->bsFile);
+
+    saveBS(opts->bsFile, newboot);
+  } /* if write boot sector to file*/
+
+  return newboot;
+}
+
+/* write bs in bsFile to drive's boot record unmodified */
+void restoreBS(SYSOptions *opts)
+{
+  storeBS(opts, 0);
+}
+
+/* write bs in bsFile to drive's boot record updating BPB */
+void putBS(SYSOptions *opts)
+{
+  storeBS(opts, 1);
+}
 
 /* determines correct boot sector, patches, backup, and write new boot sector */
 void put_boot(SYSOptions *opts)
 {
-  UBYTE oldboot[SEC_SIZE], newboot[SEC_SIZE];
-
-  /* read existing boot sector to get BPB from previously formatted volume */
-  fs = get_old_bs(opts, oldboot);
-  /* determine which built-in boot code to install based on kernel and other options */
-  get_new_bs(fs, opts, newboot);
-  /* copy over BPB information so we can write it back again */
-  copy_disk_parameters(fs, oldboot, newboot);
-  /* update boot sector based on options selected */
-  patch_bs(fs, opts, newboot);
+  UBYTE *newboot = storeBS(opts, 1);
 
   if (opts->verbose) /* display information about filesystem */
   {
@@ -679,33 +721,12 @@ void put_boot(SYSOptions *opts)
          bs->bsFATsecs, bs->bsFATs);
   }
   
-
-  if (opts->writeBS)
-  {
-    if (opts->verbose)
-      printf("Writing new bootsector to drive %c:\n", opts->dstDrive + 'A');
-
-    /* write newboot to a drive */
-    saveDriveBS(opts->dstDrive, newboot);
-    if (!opts->skipBakBSCopy)
-        saveDriveBackupBS(opts->dstDrive, newboot, opts->verbose);
-    
 #ifdef WITHOEMCOMPATBS
     /* if OEM and FAT12/16 then update root directory as well */
-    if ((fs == FAT12 || fs == FAT16) && !opts->kernel.stdbs)
+    //if ((fs == FAT12 || fs == FAT16) && !opts->kernel.stdbs)
     {
       //updateRootDir(rootSector, rootDirSectors, opts);
     }
 #endif
-
-  } /* if write boot sector to boot record*/
-
-  if (opts->bsFile != NULL)
-  {
-    if (opts->verbose)
-      printf("Writing new bootsector to file %s\n", opts->bsFile);
-
-    saveBS(opts->bsFile, newboot);
-  } /* if write boot sector to file*/
 
 } /* put_boot */

@@ -124,6 +124,7 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
   int srcarg = 0;             /* nonzero if optional source argument */
   BYTE srcFile[SYS_MAXPATH];  /* full path+name of [kernel] file [to copy] */
   struct stat fstatbuf;
+  void (*otherAction)(SYSOptions *opts) = NULL;
 
   /* initialize to defaults */
   memset(opts, 0, sizeof(SYSOptions));
@@ -293,21 +294,29 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
         {
           opts->bsFileOrig = argv[argno];
         }
-        else if (memicmp(argp, "DUMPBS", 6) == 0) /* save current bs and exit */
+        else if ((memicmp(argp, "DUMPBS", 6) == 0) || (memicmp(argp, "GETBS", 5) == 0)) /* save current bs and exit */
         {
-          if (drivearg)
-            dumpBS(argv[argno], (BYTE)(toupper(*(argv[drivearg])) - 'A'));
-          else
-            printf("%s: unspecified drive, unable to obtain boot sector\n", pgm);
-          exit(1);
+          otherAction = dumpBS;
+          opts->altBSCode = argv[argno];
         }
-        else if (memicmp(argp, "RESTORBS", 8) == 0) /* overwrite bs and exit */
+        else if (memicmp(argp, "RESTORBS", 8) == 0) /* overwrite bs (using unmodified external file) and exit */
         {
-          if (drivearg)
-            restoreBS(argv[argno], (BYTE)(toupper(*(argv[drivearg])) - 'A'));
-          else
-            printf("%s: unspecified drive, unable to restore boot sector\n", pgm);
-          exit(1);
+          otherAction = restoreBS;
+          opts->altBSCode = argv[argno];
+        }
+        else if (memicmp(argp, "PUTBS", 5) == 0) /* overwrite bs (using external file but adjusting bpb) and exit */
+        {
+          otherAction = putBS;
+          opts->altBSCode = argv[argno];
+        }
+        else if (memicmp(argp, "BSCODE", 6) == 0) /* specify external code to using instead of internal boot code */
+        {
+          opts->altBSCode = argv[argno];
+        }
+        else if (memicmp(argp, "BSCOUNT", 7) == 0) /* how many SECTOR_SIZE sectors boot code is */
+        {
+          /* opts->??? = atoi(argv[argno]); */
+          printf("Warning: ignoring option BSCOUNT\n");
         }
         else
         {
@@ -371,10 +380,6 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
     }
   }
 
-  /* if neither BOTH nor a boot sector file specified, then write to boot record */
-  if (!opts->bsFile)
-    opts->writeBS = 1;
-
   /* set dest path */
   if (!drivearg)
     showHelpAndExit();
@@ -384,6 +389,10 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
     printf("%s: drive %c must be A:..Z:\n", pgm, *(argv[drivearg]));
     exit(1);
   }
+  
+  /* if neither BOTH nor a boot sector file specified, then write to boot record */
+  if (!opts->bsFile)
+    opts->writeBS = 1;
 
   /* set source path, default to current drive */
   sprintf(opts->srcDrive, "%c:", 'A' + getcurdrive());
@@ -496,6 +505,16 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
     opts->defBootDrive = 0x80;
   /* else opts->defBootDrive = 0x0; the 1st floppy */
 
+  
+  /* if nonstandard action, perform action and exit */
+  if (otherAction != NULL) 
+  {
+    if (!opts->altBSCode)
+      printf("%s: missing filename for boot sector file!\n", pgm);
+    else
+      otherAction(opts);
+    exit(1);
+  }
 
   /* unless we are only setting boot sector, verify kernel file exists */
   if (opts->copyKernel)

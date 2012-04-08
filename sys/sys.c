@@ -36,7 +36,7 @@ int main(int argc, char **argv)
   SYSOptions opts;            /* boot options and other flags */
   BYTE srcFile[SYS_MAXPATH];  /* full path+name of [kernel] file [to copy] */
 
-  printf(SYS_NAME SYS_VERSION ", " __DATE__ "\n");
+  printf(SYS_NAME " System Installer " SYS_VERSION ", " __DATE__ "\n");
 
 #ifdef FDCONFIG
   if (argc > 1 && memicmp(argv[1], "CONFIG", 6) == 0)

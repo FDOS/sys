@@ -26,19 +26,20 @@
 
 ***************************************************************/
 
+
+#define SYS_VERSION "v3.8"
+#define SYS_NAME "FreeDOS"
+/* #define DRSYS "Enhanced DR-DOS" */
+
 /* #define DEBUG */           /* to display extra information */
 /* #define DDEBUG */          /* to enable display of sector dumps */
 /* #define WITHOEMCOMPATBS */ /* include support for OEM MS/PC DOS 3.??-6.x */
 #define FDCONFIG              /* include support to configure FD kernel */
-/* #define DRSYS */           /* SYS for Enhanced DR-DOS (OpenDOS enhancement Project) */
-
-#define SYS_VERSION "v3.8"
-#define SYS_NAME "FreeDOS System Installer "
 
 
 #ifdef DRSYS            /* set displayed name & drop FD kernel config */
 #undef SYS_NAME
-#define SYS_NAME "Enhanced DR-DOS System Installer "
+#define SYS_NAME "Enhanced DR-DOS"
 #ifdef FDCONFIG
 #undef FDCONFIG
 #endif
@@ -46,6 +47,7 @@
 #undef WITHOEMCOMPATBS
 #endif
 #endif
+
 
 #include <stdlib.h>
 #include <ctype.h>
@@ -82,16 +84,12 @@ int stat(const char *file_name, struct stat *statbuf);
 extern BYTE pgm[]; // = "SYS";
 
 
-/*
- * globals needed by put_boot & check_space
- */
-typedef enum {FAT12 = 12, FAT16 = 16, FAT32 = 32} FileSystem;
-extern FileSystem fs;  /* file system type */
-
-
 #ifdef FDCONFIG
 int FDKrnConfigMain(int argc, char **argv);
 #endif
+
+/* Indicates file system destination currently formatted as */
+typedef enum {UNKNOWN=0, FAT12 = 12, FAT16 = 16, FAT32 = 32} FileSystem;
 
 /* FreeDOS sys, we default to our kernel and load segment, but
    if not found (or explicitly given) support OEM DOS variants
@@ -124,11 +122,14 @@ typedef struct SYSOptions {
   BOOL writeBS;                 /* true to write boot sector to drive/partition LBA 0 */
   BYTE *bsFile;                 /* file name & path to save bs to when saving to file */
   BYTE *bsFileOrig;             /* file name & path to save original bs when backing up */
+  BYTE *altBSCode;              /* file name & path for external boot code file */
   BYTE *fnKernel;               /* optional override to source kernel filename (src only) */
   BYTE *fnCmd;                  /* optional override to cmd interpreter filename (src & dest) */
   enum {AUTO=0,LBA,CHS} force;  /* optional force boot sector to only use LBA or CHS */
   BOOL verbose;                 /* show extra (DEBUG) output */
   int bsCount;                  /* how many sectors to read/write */
+  
+  FileSystem fs;                /* current file system, set based on existing BPB not user option */
 } SYSOptions;
 
 /* display how to use and basic help information */
@@ -140,19 +141,15 @@ void showOemHelpAndExit(void);
 void initOptions(int argc, char *argv[], SYSOptions *opts);
 
 
-/* reads in boot sector (1st SEC_SIZE bytes) from file */
-//void readBS(const char *bsFile, UBYTE *bootsector);
-/* write bootsector to file bsFile */
-//void saveBS(const char *bsFile, UBYTE *bootsector);
-
-/* write bs in bsFile to drive's boot record unmodified */
-void restoreBS(const char *bsFile, int drive);
-/* write drive's boot record unmodified to bsFile */
-void dumpBS(const char *bsFile, int drive);
-
 /* installs boot sector */
 void put_boot(SYSOptions *opts);
 
+/* write bs in bsFile to drive's boot record unmodified */
+void restoreBS(SYSOptions *opts);
+/* write bs in bsFile to drive's boot record updating BPB */
+void putBS(SYSOptions *opts);
+/* write drive's boot record unmodified to bsFile */
+void dumpBS(SYSOptions *opts);
 
 /* copies file (path+filename specified by srcFile) to drive:\filename */
 BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename);

@@ -104,7 +104,7 @@ unsigned getextdrivespace(void far *drivename, void *buf, unsigned buf_size);
 
 #else /* !defined __WATCOMC__ */
 
-unsigned getextdrivespace(void *drivename, void *buf, unsigned buf_size)
+unsigned getextdrivespace(void far *drivename, void *buf, unsigned buf_size)
 {
   union REGS regs;
   struct SREGS sregs;
@@ -132,16 +132,10 @@ unsigned getextdrivespace(void *drivename, void *buf, unsigned buf_size)
  */
 BOOL check_space(COUNT drive, ULONG bytes)
 {
-#ifdef WITHFAT32
-  if (fs == FAT32)
-  {
-    char *drivename = "A:\\";
-    drivename[0] = 'A' + drive;
-    getextdrivespace(drivename, &x, sizeof(x));
-    return x.xfs_freeclusters > (bytes / (x.xfs_clussize * x.xfs_secsize));
-  }
-  else
-#endif
+  /* try extended drive space check 1st, if unsupported or other error fallback to standard check */
+  char *drivename = "A:\\";
+  drivename[0] = 'A' + drive;
+  if (getextdrivespace(drivename, &x, sizeof(x)))
   {
 #ifdef __TURBOC__
     struct dfree df;
@@ -154,6 +148,8 @@ BOOL check_space(COUNT drive, ULONG bytes)
       * df.bytes_per_sector >= bytes;
 #endif
   }
+  else
+    return x.xfs_freeclusters > (bytes / (x.xfs_clussize * x.xfs_secsize));
 } /* check_space */
 
 
