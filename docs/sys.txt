@@ -20,7 +20,7 @@ Usage: SYS [source] drive [bootsect] [{option}]
              to write to *instead* of real boot sector
   {option} is one or more of the following:
   /BOTH    : write to *both* the real boot sector and the image file
-  /BOOTONLY: do *not* copy kernel / shell, only update boot sector or image
+  /BOOTONLY: do *not* copy kernel or shell, only update boot sector or image
   /UPDATE  : copy kernel and update boot sector (do *not* copy shell)
   /OEM     : indicates boot sector, filenames, and load segment to use
              /OEM:FD use FreeDOS compatible settings
@@ -44,8 +44,11 @@ Usage: SYS [source] drive [bootsect] [{option}]
   /SKFN filename : copy from filename to KERNEL.SYS; settings same as /OEM:FD
   /SCFN filename : copy from filename to COMMAND.COM
   /BACKUPBS [path]filename : save current bs before overwriting
-  /DUMPBS   [path]filename : save current bs and exit
-  /RESTORBS [path]filename : overwrite bs and exit
+  /GETBS    [path]filename : save current bs to file and exit
+  /PUTBS    [path]filename : replace current bs and exit (updates BPB 1st)
+  /RESTORBS [path]filename : overwrite bs and exit (does not update BPB)
+  /BSCODE   [path]filename : use external bootcode
+  /BSCOUNT #               : count of sectors bootcode is
   /VERBOSE : display additional (debug) output
 
 SYS CONFIG /help
