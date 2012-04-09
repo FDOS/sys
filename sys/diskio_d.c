@@ -89,7 +89,7 @@ int fat32readwrite(int DosDrive, void *diskReadPacket, unsigned intno);
 
 #ifndef __TURBOC__
 
-int2526readwrite(int DosDrive, void *diskReadPacket, unsigned intno)
+int int2526readwrite(int DosDrive, void *diskReadPacket, unsigned intno)
 {
   union REGS regs;
 

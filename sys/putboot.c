@@ -212,13 +212,15 @@ static void read_write_BS_file(const char *bsFile, UBYTE *bootsector, readWriteM
 /* reads or writes boot sector (1st SEC_SIZE bytes) to/from drive */
 void read_write_BS_drive(unsigned drive, UBYTE *bootsector, readWriteMode mode, ULONG sector)
 {
-  #ifdef DDEBUG
+  #ifdef DEBUG
   const char *msg = "%s sector %lu on drive %c:\n";
 
   if (mode==write_bs)
   {
     printf(msg, "Writing to", sector, drive + 'A');
+    #ifdef DDEBUG
     dump_sector(bootsector);
+    #endif
   }
   #endif
 
@@ -236,11 +238,13 @@ void read_write_BS_drive(unsigned drive, UBYTE *bootsector, readWriteMode mode, 
   /* release lock */
   unLockDrive(drive);
 
-  #ifdef DDEBUG
+  #ifdef DEBUG
   if (mode==read_bs)
   {
     printf(msg, "Read from", sector, drive + 'A');
+    #ifdef DDEBUG
     dump_sector(bootsector);
+    #endif
   }
   #endif
 }
@@ -274,7 +278,7 @@ void saveDriveBackupBS(SYSOptions *opts, UBYTE *bootsector)
 
 #ifdef WITHOEMCOMPATBS
 /* for FAT12/16 rearranges root directory so kernel & dos files are 1st two entries */
-void updateRootDir(ULONG rootSector, UCOUNT rootDirSectors, SYSOptions *opts)
+void updateRootDir(SYSOptions *opts)
 {
   struct dirent *dir;
   struct lfn_entry *lfn;
@@ -284,7 +288,7 @@ void updateRootDir(ULONG rootSector, UCOUNT rootDirSectors, SYSOptions *opts)
   //opts->kernel.kernel, opts->kernel.dos
   setFilename(filename, opts->kernel.kernel);
   // read in sector
-  if (MyAbsReadWrite(opts->dstDrive, 1, rootSector, buffer, 0) != 0)
+  if (MyAbsReadWrite(opts->dstDrive, 1, opts->rootSector, buffer, 0) != 0)
   {
     printf("Error reading root directory, not updated!\n");
     return;
@@ -341,7 +345,7 @@ void correct_bpb(FileSystem fs, unsigned drive, struct bootsectortype *oldboot, 
 
 
 /* reads in current (old) boot sector, determine filesystem, and update CHS portion of BPB */
-FileSystem get_old_bs(SYSOptions *opts, UBYTE oldboot[])
+FileSystem get_old_bs(SYSOptions *opts, UBYTE *oldboot)
 {
 #ifdef WITHFAT32
   struct bootsectortype32 *bs32;
@@ -349,10 +353,6 @@ FileSystem get_old_bs(SYSOptions *opts, UBYTE oldboot[])
   struct bootsectortype *bs;
   FileSystem fs;
 
-  /* for OEM kernels, ensure 1st two root dir entries correspond with kernel files */
-  ULONG rootSector; /* first data sector, for FAT12/16 also 1st sector of root directory */
-  UCOUNT rootDirSectors;
-  
   if (opts->verbose)
   {
     printf("Reading current bootsector from drive %c:\n", opts->dstDrive + 'A');
@@ -385,15 +385,15 @@ FileSystem get_old_bs(SYSOptions *opts, UBYTE oldboot[])
     ULONG fatSize, totalSectors, dataSectors, clusters;
 
     bs32 = (struct bootsectortype32 *)bs;
-    rootDirSectors = (bs->bsRootDirEnts * DIRENT_SIZE  /* 32 */
+    opts->rootDirSectors = (bs->bsRootDirEnts * DIRENT_SIZE  /* 32 */
                  + bs32->bsBytesPerSec - 1) / bs32->bsBytesPerSec;
     fatSize      = bs32->bsFATsecs ? bs32->bsFATsecs : bs32->bsBigFatSize;
     totalSectors = bs32->bsSectors ? bs32->bsSectors : bs32->bsHugeSectors;
 
     /* 1st data sector, also root dir sector for FAT12/16, for FAT32 root dir = bsRootCluster-2+rootSector */
-    rootSector = bs32->bsResSectors + (bs32->bsFATs * fatSize);
+    opts->rootSector = bs32->bsResSectors + (bs32->bsFATs * fatSize);
 
-    dataSectors = totalSectors - rootSector - rootDirSectors;
+    dataSectors = totalSectors - opts->rootSector - opts->rootDirSectors;
     clusters = dataSectors / bs32->bsSecPerClust;
  
     if (clusters < FAT_MAGIC)        /* < 4085 */
@@ -503,14 +503,14 @@ void copy_disk_parameters(FileSystem fs, UBYTE oldboot[], UBYTE newboot[])
 void patch_bs(SYSOptions *opts, UBYTE newboot[])
 {
   int bsBiosMovOff;  /* offset in bs to mov [drive],dl that we NOP out */
-  struct bootsectortype *bs = (struct bootsectortype *)&newboot;
+  struct bootsectortype *bs = (struct bootsectortype *)newboot;
 
 #ifdef WITHFAT32
   struct bootsectortype32 *bs32;
 
   if (fs == FAT32)
   {
-    bs32 = (struct bootsectortype32 *)&newboot;
+    bs32 = (struct bootsectortype32 *)newboot;
     /* ensure appears valid, if not then force valid */
     if ((bs32->bsBackupBoot < 1) || (bs32->bsBackupBoot > bs32->bsResSectors))
     {
@@ -633,6 +633,8 @@ void dumpBS(SYSOptions *opts)
 
   /* write out boot code to file */
   saveBS(opts->altBSCode, bootsector);
+  
+  printf("Boot sector retrieved.\n");
 }
 
 
@@ -648,9 +650,9 @@ static UBYTE* storeBS(SYSOptions *opts, int updateBPB)
   /* load new boot code via external file or from compiled in resource */
   if (opts->altBSCode)
   {
-    /* load boot code from file */
+  /* load boot code from file */
     readBS(opts->altBSCode, newboot);
-  } 
+    } 
   else
   {
     /* determine which built-in boot code to install based on kernel and other options */
@@ -674,6 +676,7 @@ static UBYTE* storeBS(SYSOptions *opts, int updateBPB)
     if (opts->verbose)
       printf("Writing new bootsector to drive %c:\n", opts->dstDrive + 'A');
 
+
     /* write newboot to a drive */
     saveDriveBS(opts->dstDrive, newboot);
     if (!opts->skipBakBSCopy)
@@ -696,12 +699,14 @@ static UBYTE* storeBS(SYSOptions *opts, int updateBPB)
 void restoreBS(SYSOptions *opts)
 {
   storeBS(opts, 0);
+  printf("Boot sector restored.\n");
 }
 
 /* write bs in bsFile to drive's boot record updating BPB */
 void putBS(SYSOptions *opts)
 {
   storeBS(opts, 1);
+  printf("Finished putting boot sector.\n");
 }
 
 /* determines correct boot sector, patches, backup, and write new boot sector */
@@ -712,7 +717,7 @@ void put_boot(SYSOptions *opts)
   if (opts->verbose) /* display information about filesystem */
   {
   struct bootsectortype *bs;
-  bs = (struct bootsectortype *)&newboot;
+  bs = (struct bootsectortype *)newboot;
   printf("Root dir entries = %u\n", bs->bsRootDirEnts);
 
   printf("FAT starts at sector (%lu + %u)\n",
@@ -723,9 +728,9 @@ void put_boot(SYSOptions *opts)
   
 #ifdef WITHOEMCOMPATBS
     /* if OEM and FAT12/16 then update root directory as well */
-    //if ((fs == FAT12 || fs == FAT16) && !opts->kernel.stdbs)
+    if ((opts->fs == FAT12 || opts->fs == FAT16) && (!opts->kernel.stdbs && !opts->altBSCode))
     {
-      //updateRootDir(rootSector, rootDirSectors, opts);
+      updateRootDir(opts);
     }
 #endif
 

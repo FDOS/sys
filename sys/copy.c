@@ -155,7 +155,7 @@ BOOL check_space(COUNT drive, ULONG bytes)
 
 BYTE copybuffer[COPY_SIZE];
 
-#ifndef WIN32
+#ifndef _WIN32
 /* allocate memory from DOS, return 0 on success, nonzero otherwise */
 int alloc_dos_mem(ULONG memsize, UWORD *theseg)
 {

@@ -6,13 +6,17 @@
 
 !include "../mkfiles/generic.mak"
 
-DOS_FILES=diskio_d.c prf.c talloc.c getenv.c
+DOS_FILES=diskio_d.c prf.c getenv.c talloc.c
 
-SYS_C=sys.c usage.c initopts.c fdkrncfg.c putboot.c copy.c $(DOS_FILES)
+WIN_FILES=diskio_w.c
+
+SYS_C=sys.c usage.c initopts.c fdkrncfg.c putboot.c copy.c
 
 ########################################################################
 
 all:		bin2c.com ..\bin\sys.com
+
+win:        bin2c.com ..\bin\sys.exe
 
 bin2c.com:	bin2c.c $(DEPENDS)
 
@@ -35,9 +39,14 @@ oemfat16.h:	..\boot\oemfat16.bin bin2c.com
 		bin2c ..\boot\$*.bin $*.h $*
 
 ..\bin\sys.com:	$(SYS_C) sys.h ..\hdr\*.h fat12com.h fat16com.h fat32chs.h fat32lba.h oemfat12.h oemfat16.h
-		$(CL) $(CFLAGST) -DWITHFAT32 -DWITHOEMCOMPATBS $(SYS_C)
+		$(CL) $(CFLAGST) -DFDCONFIG -DWITHFAT32 -DWITHOEMCOMPATBS $(SYS_C) $(DOS_FILES)
 		copy sys.com ..\bin
 		del sys.com
+
+..\bin\sys.exe:	$(SYS_C) sys.h ..\hdr\*.h fat12com.h fat16com.h fat32chs.h fat32lba.h oemfat12.h oemfat16.h
+		$(CL) $(CFLAGSW) -DFDCONFIG -DWITHFAT32 -DWITHOEMCOMPATBS $(SYS_C) $(WIN_FILES)
+		copy sys.exe ..\bin
+		del sys.exe
 
 ########################################################################
 

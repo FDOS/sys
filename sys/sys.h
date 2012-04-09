@@ -28,13 +28,14 @@
 
 
 #define SYS_VERSION "v3.8"
+#ifndef SYS_NAME
 #define SYS_NAME "FreeDOS"
-/* #define DRSYS "Enhanced DR-DOS" */
+#endif
 
 /* #define DEBUG */           /* to display extra information */
 /* #define DDEBUG */          /* to enable display of sector dumps */
 /* #define WITHOEMCOMPATBS */ /* include support for OEM MS/PC DOS 3.??-6.x */
-#define FDCONFIG              /* include support to configure FD kernel */
+/* #define FDCONFIG */        /* include support to configure FD kernel */
 
 
 #ifdef DRSYS            /* set displayed name & drop FD kernel config */
@@ -55,6 +56,9 @@
 #include <sys/stat.h>
 #include <string.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include <dos.h>
 #define SYS_MAXPATH   260
 #include "portab.h"
@@ -130,6 +134,8 @@ typedef struct SYSOptions {
   int bsCount;                  /* how many sectors to read/write */
   
   FileSystem fs;                /* current file system, set based on existing BPB not user option */
+  ULONG rootSector;             /* obtained from existing BPB, used for updating root directory */
+  UCOUNT rootDirSectors;        /* when booting with OEM boot logic with boot files in 1st entries */
 } SYSOptions;
 
 /* display how to use and basic help information */

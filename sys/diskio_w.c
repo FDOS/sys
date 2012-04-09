@@ -29,7 +29,6 @@
 #include "sys.h"
 #include "diskio.h"
 
-
 void ShowErrorMsg(void)
 {
 LPVOID lpMsgBuf;
