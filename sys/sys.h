@@ -69,6 +69,7 @@
 
 #ifdef _WIN32
 #include <stdio.h>
+#include <direct.h>
 #else
 /* These definitions deliberately put here instead of
  * #including <stdio.h> to make executable MUCH smaller

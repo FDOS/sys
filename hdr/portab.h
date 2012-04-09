@@ -86,10 +86,13 @@ void __emit__(char, ...);
 #define I86
 #define asm __asm
 #pragma warning(disable: 4761) /* "integral size mismatch in argument;
+
                                    conversion supplied" */
+#ifndef CDECL
 #define CDECL   _cdecl
 #define VA_CDECL
 #define PASCAL  pascal
+#endif
 #define __int__(intno) asm int intno;
 #define disable() asm cli
 #define enable() asm sti
@@ -202,8 +205,10 @@ typedef unsigned       size_t;
 /* Boolean type & definitions of TRUE and FALSE boolean values  */
 /*                                                              */
 typedef int BOOL;
+#ifndef FALSE
 #define FALSE           (1==0)
 #define TRUE            (1==1)
+#endif
 
 /*                                                              */
 /* Common pointer types                                         */
@@ -226,9 +231,11 @@ typedef int BOOL;
 /*                                                              */
 /* Common byte, 16 bit and 32 bit types                         */
 /*                                                              */
+#ifndef _WIN32
 typedef char BYTE;
 typedef short WORD;
 typedef long DWORD;
+#endif
 
 typedef unsigned char UBYTE;
 typedef unsigned short UWORD;
@@ -257,6 +264,8 @@ typedef unsigned short UNICODE;
 
 #ifdef UNIX
 typedef char FAR *ADDRESS;
+#elif _WIN32
+typedef void * ADDRESS;
 #else
 typedef void FAR *ADDRESS;
 #endif
@@ -328,7 +337,9 @@ typedef UWORD seg_t;
 #define FP_OFF(fp)             ((size_t)(fp))
 #endif
 
+#ifndef _WIN32
 typedef VOID (FAR ASMCFUNC * intvec) (void);
+#endif
 
 #define MK_PTR(type,seg,ofs) ((type FAR*) MK_FP (seg, ofs))
 #if __TURBOC__ > 0x202
@@ -343,7 +354,9 @@ typedef VOID (FAR ASMCFUNC * intvec) (void);
 	unreferenced parameter 'x'
 	and (hopefully) generates no code
 */
+#ifndef UNREFERENCED_PARAMETER
 #define UNREFERENCED_PARAMETER(x) (void)(x)
+#endif
 
 #ifdef I86                      /* commandline overflow - removing /DPROTO TE */
 #define PROTO
@@ -352,8 +365,13 @@ typedef VOID (FAR ASMCFUNC * intvec) (void);
 typedef const char	CStr[], *PCStr;
 typedef char		Str[], *PStr;
 typedef const void	*CVP;
+#ifdef _WIN32
+typedef const void *CVFP;
+typedef void *VFP;
+#else
 typedef const void FAR	*CVFP;
 typedef void FAR	*VFP;
+#endif
 
 #define LENGTH(x) (sizeof (x)/sizeof *(x))
 #define ENDOF(x) ((x) + LENGTH (x))

@@ -151,9 +151,10 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
           /* help on OEM options */
           if (memicmp(argv[argno+1], "OEM", 3) == 0)
             showOemHelpAndExit();
+#ifdef FDCONFIG
           else if (memicmp(argv[argno+1], "CONFIG", 6) == 0)
             exit(FDKrnConfigMain(argc, argv));
-
+#endif
           /* else bad option so fall through to standard usage help */
         }
         showHelpAndExit();
@@ -299,7 +300,7 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
           otherAction = dumpBS;
           opts->altBSCode = argv[argno];
         }
-        else if (memicmp(argp, "RESTORBS", 8) == 0) /* overwrite bs (using unmodified external file) and exit */
+        else if ((memicmp(argp, "RESTORBS", 8) == 0) || (memicmp(argp, "RESTOREBS", 9) == 0)) /* overwrite bs (using unmodified external file) and exit */
         {
           otherAction = restoreBS;
           opts->altBSCode = argv[argno];

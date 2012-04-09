@@ -26,8 +26,12 @@ char KERNEL[] = "KERNEL.SYS";
  * #including <stdio.h> to make executable MUCH smaller
  * using [s]printf from prf.c!
  */
+#ifdef _WIN32
+#include <stdio.h>
+#else
 extern int VA_CDECL printf(CONST char FAR * fmt, ...);
 extern int VA_CDECL sprintf(char FAR * buff, CONST char FAR * fmt, ...);
+#endif
 
 #ifdef __WATCOMC__
 unsigned _dos_close(int handle);

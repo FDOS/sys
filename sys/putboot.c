@@ -383,18 +383,21 @@ FileSystem get_old_bs(SYSOptions *opts, UBYTE *oldboot)
     * (http://www.nondot.org/sabre/os/files/FileSystems/FatFormat.pdf)
     */
     ULONG fatSize, totalSectors, dataSectors, clusters;
-
+#ifdef WITHFAT32
     bs32 = (struct bootsectortype32 *)bs;
+    fatSize      = bs->bsFATsecs ? bs->bsFATsecs : bs32->bsBigFatSize;
+#else
+	fatSize      = bs->bsFATsecs;
+#endif
+    totalSectors = bs->bsSectors ? bs->bsSectors : bs->bsHugeSectors;
     opts->rootDirSectors = (bs->bsRootDirEnts * DIRENT_SIZE  /* 32 */
-                 + bs32->bsBytesPerSec - 1) / bs32->bsBytesPerSec;
-    fatSize      = bs32->bsFATsecs ? bs32->bsFATsecs : bs32->bsBigFatSize;
-    totalSectors = bs32->bsSectors ? bs32->bsSectors : bs32->bsHugeSectors;
+                 + bs->bsBytesPerSec - 1) / bs->bsBytesPerSec;
 
     /* 1st data sector, also root dir sector for FAT12/16, for FAT32 root dir = bsRootCluster-2+rootSector */
-    opts->rootSector = bs32->bsResSectors + (bs32->bsFATs * fatSize);
+    opts->rootSector = bs->bsResSectors + (bs->bsFATs * fatSize);
 
     dataSectors = totalSectors - opts->rootSector - opts->rootDirSectors;
-    clusters = dataSectors / bs32->bsSecPerClust;
+    clusters = dataSectors / bs->bsSecPerClust;
  
     if (clusters < FAT_MAGIC)        /* < 4085 */
       fs = FAT12;

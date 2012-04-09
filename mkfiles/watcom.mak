@@ -24,6 +24,7 @@ MATH_INSERT =+i4m
 # -e=<num>      set limit on number of error messages
 # -w=<num>      set warning level number
 # -we           treat all warnings as errors
+# -wx           set warning level to max
 # -zq           operate quietly
 #
 # -j            change char default from unsigned to signed
@@ -32,7 +33,7 @@ MATH_INSERT =+i4m
 # -s            remove stack overflow checks
 # -ze           enable extensions (i.e., near, far, export, etc.)
 # -zl           remove default library information
-# -zp=<num>     pack structure members with alignment {1,2,4,8,16}
+# -zp<num>      pack structure members with alignment {1,2,4,8,16}
 # -zu           SS!=DGROUP
 #
 # -3		optimization for 386 - given in $(CPUOPT)
@@ -51,3 +52,4 @@ CFLAGS    =@wc.cfg
 CFLAGST=-I..\hdr;$(INCLUDEPATH) -e3-we-wx-zq-os-s-zp1-mt-bt=DOS
 CFLAGSC=-I..\hdr;$(INCLUDEPATH) -e3-we-wx-zq-os-s-zp1-mc-bt=DOS
 
+CFLAGSW=-I..\hdr;$(INCLUDEPATH) -e3-we-wx-zq-os-s-zp1-bt=NT

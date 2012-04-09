@@ -74,6 +74,11 @@ void truename(char far *dest, const char *src);
       "int 0x21"          \
       parm [es di] [si];
 
+#elif defined _WIN32
+void truename(char *dest, const char *src)
+{
+	strcpy(dest, src);
+}
 #else
 
 void truename(char *dest, const char *src)
@@ -104,6 +109,12 @@ unsigned getextdrivespace(void far *drivename, void *buf, unsigned buf_size);
 
 #else /* !defined __WATCOMC__ */
 
+#ifdef _WIN32
+unsigned getextdrivespace(void far *drivename, void *buf, unsigned buf_size)
+{
+	return MAXLONG;
+}
+#else
 unsigned getextdrivespace(void far *drivename, void *buf, unsigned buf_size)
 {
   union REGS regs;
@@ -121,7 +132,7 @@ unsigned getextdrivespace(void far *drivename, void *buf, unsigned buf_size)
   intdosx(&regs, &regs, &sregs);
   return regs.x.ax == 0x7300 || regs.x.cflag;
 } /* getextdrivespace */
-
+#endif
 #endif /* defined __WATCOMC__ */
 
 
@@ -132,6 +143,9 @@ unsigned getextdrivespace(void far *drivename, void *buf, unsigned buf_size)
  */
 BOOL check_space(COUNT drive, ULONG bytes)
 {
+#ifdef _WIN32
+  return TRUE;
+#else
   /* try extended drive space check 1st, if unsupported or other error fallback to standard check */
   char *drivename = "A:\\";
   drivename[0] = 'A' + drive;
@@ -150,6 +164,7 @@ BOOL check_space(COUNT drive, ULONG bytes)
   }
   else
     return x.xfs_freeclusters > (bytes / (x.xfs_clussize * x.xfs_secsize));
+#endif
 } /* check_space */
 
 
@@ -213,7 +228,8 @@ BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename)
     return FALSE;
   }
 
-#if defined __WATCOMC__ || defined _MSC_VER /* || defined __BORLANDC__ */
+#ifdef _WIN32
+#elif defined __WATCOMC__ || defined _MSC_VER /* || defined __BORLANDC__ */
   _dos_getftime(fdin, &date, &time);
 #elif defined __TURBOC__
   getftime(fdin, &ftime);
@@ -249,8 +265,10 @@ BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename)
   }
  #else /* read in whole file, then write out whole file */
   {
-    ULONG filesize;
+#ifndef _WIN32
     UWORD theseg;
+#endif
+    ULONG filesize;
     BYTE far *buffer, far *bufptr;
     UWORD offs;
     unsigned chunk_size;
@@ -308,7 +326,7 @@ BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename)
       }
 
       /* write the data to disk, abort on any error */
-      if (write(fdout, copybuffer, chunk_size) != chunk_size)
+      if ((unsigned)write(fdout, copybuffer, chunk_size) != chunk_size)
       {
         printf("Can't write %u bytes to %s\n", ret, dest);
         close(fdout);
@@ -325,7 +343,8 @@ BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename)
   }
  #endif
 
-#if defined __WATCOMC__ || defined _MSC_VER /* || defined __BORLANDC__ */
+#ifdef _WIN32
+#elif defined __WATCOMC__ || defined _MSC_VER /* || defined __BORLANDC__ */
   _dos_setftime(fdout, date, time);
 #elif defined __TURBOC__
   setftime(fdout, &ftime);

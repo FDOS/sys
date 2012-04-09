@@ -383,6 +383,9 @@ typedef struct {
 } request;
 
 #define HUGECOUNT       0xffff
+#ifdef MAXSHORT
+#undef MAXSHORT
+#endif
 #define MAXSHORT        0xffffl
 
 /*

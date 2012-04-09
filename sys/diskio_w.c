@@ -55,8 +55,8 @@ LocalFree( lpMsgBuf );
 /* See http://www.codeguru.com/system/ReadSector.html by Sreejith S
    to add Win9x support 
 */
-//int MyAbsReadWrite(int DosDrive, int count, ULONG sector, void *buffer, int write);
-int MyAbsReadWrite(int DosDrive, UWORD count, ULONG sector, char *buffer, int write)
+int MyAbsReadWrite(int DosDrive, int count, ULONG sector, void *buffer, int write)
+//int MyAbsReadWrite(int DosDrive, UWORD count, ULONG sector, char *buffer, int write)
 {
   char devName[] = "\\\\.\\X:";
   HANDLE hFloppy;
@@ -106,3 +106,8 @@ BOOL haveLBA(void)     /* return TRUE if we have LBA BIOS, FALSE otherwise */
   return TRUE;
 }
 
+void lockDrive(unsigned drive) {}
+void unLockDrive(unsigned drive) {}
+
+/* returns default BPB (and other device parameters) */
+int getDeviceParms(unsigned drive, FileSystem fs, unsigned char *buffer) { return -1; }
