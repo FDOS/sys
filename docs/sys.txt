@@ -1,16 +1,29 @@
-FreeDOS System Installer v3.7 - Aug 10, 2011
+FreeDOS System Installer v3.8 - April, 2012
 documentation by:
   Jeremy Davis
   Bart Oldeman
 
-SYS's standard behavior is very similar (though in
+SYS is the program which will prepare a disk to boot
+the operating system.  It requires the disk already be
+prepared via the format program (this initializes the
+file system and places a valid BPB on the disk to describe
+the size and other necessary settings to access contents).
+SYS will install the code with the logic to load the operating
+system to run the computer.  Additionally, SYS may copy over
+the actual files needed by the operating system to begin.
+For FreeDOS this will be the kernel (KERNEL.SYS) and the
+command shell (COMMAND.COM).  
+  
+FreeDOS SYS's standard behavior is very similar (though in
 my opinion improved) to that of other DOSes.
-SYS /? (or no options) should provide a general usage,
-and SYS CONFIG /help (or SYS CONFIG /?) should
-provide usage for the new configuration options.
+SYS /? (or no options) should provide a general usage.
+SYS /? OEM provides overview of DOS versions the given
+build of sys will support (which boot sectors included).
+For options to configure FreeDOS kernel see SYS CONFIG /? 
+Note: /? may be replaced with /HELP
 
-The best documentation is the source itself, but
-we try to keep this document updated.
+Please refer to the source itself for details, but this
+we attempt to maintain this document.
 
 
 Usage: SYS [source] drive [bootsect] [{option}]
@@ -41,7 +54,7 @@ Usage: SYS [source] drive [bootsect] [{option}]
              /FORCE:LBA always use LBA
              /FORCE:CHS always use CHS
   /NOBAKBS : skips copying boot sector to backup bs, FAT32 only else ignored
-  /SKFN filename : copy from filename to KERNEL.SYS; settings same as /OEM:FD
+  /SKFN filename : copy from filename to kernel (e.g. default would be KERNEL.SYS)
   /SCFN filename : copy from filename to COMMAND.COM
   /BACKUPBS [path]filename : save current bs before overwriting
   /GETBS    [path]filename : save current bs to file and exit
@@ -51,8 +64,9 @@ Usage: SYS [source] drive [bootsect] [{option}]
   /BSCOUNT #               : count of sectors bootcode is
   /VERBOSE : display additional (debug) output
 
-SYS CONFIG /help
-
+SYS /HELP
+SYS /HELP OEM
+SYS CONFIG /HELP
 
 The simplest usage:
 
@@ -80,12 +94,12 @@ Alternatively, you may specify a path (either fully
 qualified or relative) to where KERNEL.SYS and
 COMMAND.COM may be found; note that this should 
 only search this directory and will fail if they
-are not found, ie it will not check for them on
+are not found, i.e. it will not check for them on
 the root directory of the drive specified when
 a path is given.  It should also fail if the
 source and destination drive are both the same
 and would result in trying to SYS from the root
-to the root (ie trying to SYS from C:\ to C:\).
+to the root (e.g. trying to SYS from C:\ to C:\).
 
 If you specify a name for "bootsect", for instance,
 bootsect.fd, SYS will write to that file instead of
@@ -93,19 +107,57 @@ the real boot sector. You will obtain a 512-byte file
 containing the boot sector, which can then be used
 for dual booting or diagnostic purposes.
 
-If you also specify BOTH, sys will write to both
+If you also specify /BOTH, sys will write to both
 the image file and the boot sector.
+Note: earlier versions of SYS used the option BOTH
+(without the slash /), but current versions require
+the forward slash for the /BOTH option.
 
-The FORCE options override the default actions
-to use.  On FAT32 drives /FORCE:LBA and /FORCE:CHS
+The /BOOTONLY option may be used to avoid copying
+any files, only the boot sector (or optional bootsect
+file) while be written.
+
+The /UPDATE option is used when updating the 
+FreeDOS kernel.  Both the boot sector (or bootsect
+file) is written and the kernel (KERNEL.SYS) is
+copied to the destination drive.  (The default
+without /BOOTONLY or /UPDATE is to update the
+boot sector and copy both the kernel and shell
+to the destination drive.)
+
+The /FORCE options override the default actions
+to use.  There are two separate groups of options.
+:AUTO, :LBA, or :CHS determine which method of 
+communicating with the computer's BIOS is used to
+read the drive when loading the operating system.
+On FAT32 drives /FORCE:LBA and /FORCE:CHS
 will select which boot sector code is used (default
 same as /FORCE:AUTO will choose based on query of
 BIOS support for LBA extensions and use LBA if it
-is supported else only CHS will be used).  On FAT12
-and FAT16 drives specifying /FORCE:LBA will ensure
+is supported else only CHS will be used).  Note that
+due to limited space, on FAT32 only one or the other
+of the access methods is supported, but for FAT12 or
+FAT16 both are available so support can be queried 
+at boot time.  Using CHS is supported for backward
+compatibility across most computers but limits the
+location on the disk to that supported by CHS (generally
+within 1st 8GB on newer computers) and has most issues
+if drive is used on different computer.  LBA is best
+but not supported on all (mostly older) computers.
+On FAT12 and FAT16 drives specifying /FORCE:LBA will ensure
 even 1st floppy drive attempts to use LBA support
 (note that CHS may still be used if LBA check fails)
 and /FORCE:CHS will always bypass use of LBA extensions.
+:BSDRV or :BIOSDRV determines whether to use drive
+specified by computer's BIOS (/FORCE:BIOSDRV) to load
+the os from or if the value stored in the boot sector
+should be used (/FORCE:BSDRV).  The :BSDRV option is 
+useful if the computer's BIOS does not provide a valid
+drive # (0=1st floppy, 1=2nd floppy, ... 80=1st hard drive,
+81=2nd hard drive, ...) or for advanced/computer specific
+booting (i.e. chaining to 2nd hard drive).  The drive
+number may be set via the /B btdrv option.  By default
+it is set to 0 for floppy and 80 if sys'ing a hard drive.
 
 *** For OEM compatible support one should format the drive
 and then immediately run sys before adding any other
@@ -113,7 +165,125 @@ files or even volume label for maximum compatibility.
 A future update to sys will ensure the 1st two directory
 entries are the kernel files, but currently not implemented.
 
-Kernel Configuration Options:
+Multiple versions of DOS are optionally supported
+(determined at build time) via included boot sectors.
+The primary usage of this feature is to allow the same drive
+to multiboot via simple SYS followed by reboot (e.g. 
+for testing) and to allow creation of boot disks (where
+most other versions of SYS will only run if corresponding
+version of DOS kernel is already running - MS-DOS 5 can't
+be used to run sys for PC-DOS 4, etc.).  The default boot
+sector will load the complete kernel and chain to it.  
+This one (referred to as the standard or FreeDOS boot 
+sector) is used to boot FreeDOS and Enhanced DR-DOS kernels.  
+The OEM compatible boot sector (if included) is used to 
+boot other versions of DOS including Microsoft's MS-DOS,
+IBM's PC-DOS, RX-DOS, Dell's Real Mode Kernel (DRMK-DOS),
+and other operating systems with similar requirements to
+traditional DOS kernels (1st few sectors of kernel only).
+Refer to the boot sector's code for explicit registers
+that parameters are passed in what is supported - where
+different versions of even the same vendor's DOS may
+require different information.
+
+The /NOBAKBS option disable the storing of a second copy
+of the boot sector on file systems that store multiple
+copies of the boot code.  Currently only FAT32 is supported
+that uses this feature.  When multi-booting it may be
+best to use this option so all of the original operating
+systems backup boot sectors are unchanged (FreeDOS uses
+only 1 sector even for FAT32, whereas other operating
+systems may use multiple sectors on FAT32 drives).
+Note: if writing boot sector to a file instead of disk
+then this option is ignored as neither primary nor backup
+boot sector will be written.
+
+The boot code used is fairly generic and may be used to
+boot other operating systems, even hobby ones.  To facilitate
+the varied kernel names and load segments the options
+/K and /L may be utilized.  E.g. to boot a fictional
+operating system MyOS which uses a kernel named MYOS.BIN
+and requires it to be loaded at segment 0x70 the following
+sys command line could be used, assuming a copy of the os
+files are on drive C: and we want drive A: to be bootable:
+SYS C: A: /UPDATE /K MYOS.BIN /L 70
+where /UPDATE option is used to allow copying MYOS.BIN but
+avoid attempting to copy COMMAND.COM.
+
+To allow keeping multiple versions of the kernel and selecting
+a specific one to use to make a drive bootable the /SKFN
+option can be used.  This option Sets the Kernel FileName as
+the source filename used for the copy to destination.  It does
+not effect the resulting file name nor filename indicated
+in the boot sector (use /K name to change the destination name).
+E.g. if KE2040.SYS and KE2041.SYS are in the current drive then:
+SYS A: /SKFN KE2041.SYS /UPDATE
+will set A: to boot a file named KERNEL.SYS (the default name
+used for FreeDOS) and copy the file named KE2041.SYS to
+A:\KERNEL.SYS, and since update is used leave COMMAND.COM unchanged.
+E.g. if FD.SYS and EDR.SYS are in current drive then:
+SYS A: /SKFN EDR.SYS /L 70 /K DRBIO.SYS
+is mostly equivalent to 
+SYS A: /OEM:DR /SKFN EDR.SYS
+which copies EDR.SYS to A:DRBIO.SYS, copies COMMAND.COM to A:COMMAND.COM
+and places the standard boot sector on floppy loading kernel
+at 0x70 (instead of default 0x60 segment).
+
+The /SCFN option is similar to /SKFN except is specifies the
+source name of COMMAND.COM; it is always copied to destination
+as COMMAND.COM.  E.g. to use 4DOS.COM
+SYS A: /SCFN 4DOS.COM
+will write the boot sector, copy the kernel, and then copy
+4DOS.COM to A:\COMMAND.COM (instead of attempting to copy
+COMMAND.COM to A:\COMMAND.COM).
+
+As the boot sector is important for the proper booting of a
+computer there are several options to work with the boot sector.
+/BACKUPBS is used to during normal operations to create a copy
+of the current boot sector before SYS makes any changes to it.
+Logically using /BACKUPBS file.bs is the same as 1st running
+SYS with the /GETBS file.bs option then rerunning to set the
+boot sector and copy files. E.g.
+SYS C: A: /BACKUPBS orig.bs
+is the same as running the following two commands:
+SYS A: /GETBS orig.bs
+SYS C: A:
+To retrieve and set the boot sector directly then /GETBS and
+/PUTBS commands should be used.  Note: in earlier versions
+/GETBS was /DUMPBS which still works as an alias to /GETBS.
+The /GETBS command will copy the current boot sector code
+to specified filename and exit. E.g.
+SYS C: /GETBS backup.bs
+will copy the current boot sector of drive C: to file named backup.bs
+To later fix or update the boot sector with a previously saved
+boot sector (or maybe one you are developing/testing) use the
+/PUTBS option.  This will copy the settings from the drive's
+current BPB to the new boot sector then write it to the drive.  E.g.
+SYS C: /PUTBS backup.bs
+will load backup.bs, copy the current C: drive's BPB information
+(which gives the # sectors, heads, etc.) to it and then overwrite
+drive C:'s boot sector with the new code and exit.
+If you are using the exact same drive and computer then the
+/RESTORBS (or /RESTOREBS) option may be used - it does not make
+any changes to the loaded BPB so should only be used on the same
+computer and drive from a previous /GETBS command (or other program
+that retrieved the boot sector).
+
+New with SYS 3.8 is the ability to set the boot sector of a drive
+using external (to SYS command) boot code via /BSCODE option.  
+This can be used for development purposes or to copy the boot 
+sector from a previous /GETBS call or disk image file and write 
+to specified drive.  Note that the BPB will be updated prior to
+writing to drive, so may be used from boot code for different
+drive or ones written from a different computer.
+
+The /VERBOSE option may be used to see additional details during
+the system installation process.  It is useful for the curious
+and to help if there are issues booting/running the SYS command.
+
+
+
+FreeDOS Kernel Configuration Options:
 
 Simplest form:
 
@@ -231,3 +401,9 @@ not show drive assignment and change the timeout
 to never check
 SYS CONFIG \KERNEL.SYS SKI=-1 SHOWDRIVEASSIGNMENT=0x0
 
+
+
+* All trade marks (TM) belong to respective companies and
+use within this document only for indicating given variant,
+all rights reserved respective owners, use in this document
+does not indicates owners knowledge or other...
