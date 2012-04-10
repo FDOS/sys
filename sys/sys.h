@@ -25,20 +25,17 @@
  675 Mass Ave, Cambridge, MA 02139, USA.
 
 ***************************************************************/
-
+#ifndef _SYS_H_
+#define _SYS_H_
 
 #define SYS_VERSION "v3.8"
+#include "config.h"
+
 #ifndef SYS_NAME
 #define SYS_NAME "FreeDOS"
 #endif
 
-/* #define DEBUG */           /* to display extra information */
-/* #define DDEBUG */          /* to enable display of sector dumps */
-/* #define WITHOEMCOMPATBS */ /* include support for OEM MS/PC DOS 3.??-6.x */
-/* #define FDCONFIG */        /* include support to configure FD kernel */
-
-
-#ifdef DRSYS            /* set displayed name & drop FD kernel config */
+#ifdef DRSYS
 #undef SYS_NAME
 #define SYS_NAME "Enhanced DR-DOS"
 #ifdef FDCONFIG
@@ -160,3 +157,5 @@ void dumpBS(SYSOptions *opts);
 
 /* copies file (path+filename specified by srcFile) to drive:\filename */
 BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename);
+
+#endif /* _SYS_H_ */

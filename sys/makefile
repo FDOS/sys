@@ -38,13 +38,14 @@ oemfat12.h:	..\boot\oemfat12.bin bin2c.com
 oemfat16.h:	..\boot\oemfat16.bin bin2c.com
 		bin2c ..\boot\$*.bin $*.h $*
 
-..\bin\sys.com:	$(SYS_C) sys.h ..\hdr\*.h fat12com.h fat16com.h fat32chs.h fat32lba.h oemfat12.h oemfat16.h
-		$(CL) $(CFLAGST) -DFDCONFIG -DWITHFAT32 -DWITHOEMCOMPATBS $(SYS_C) $(DOS_FILES)
+..\bin\sys.com:	$(SYS_C) sys.h ..\hdr\*.h fat12com.h fat16com.h fat32chs.h fat32lba.h oemfat12.h oemfat16.h config.h
+		$(CL) $(CFLAGST) $(SYS_C) $(DOS_FILES)
 		copy sys.com ..\bin
 		del sys.com
 
-..\bin\sys.exe:	$(SYS_C) sys.h ..\hdr\*.h fat12com.h fat16com.h fat32chs.h fat32lba.h oemfat12.h oemfat16.h
-		$(CL) $(CFLAGSW) -DFDCONFIG -DWITHFAT32 -DWITHOEMCOMPATBS $(SYS_C) $(WIN_FILES)
+..\bin\sys.exe:	$(SYS_C) sys.h ..\hdr\*.h fat12com.h fat16com.h fat32chs.h fat32lba.h oemfat12.h oemfat16.h config.h
+		$(CL) $(CFLAGST) $(SYS_C) $(DOS_FILES)
+		$(CL) $(CFLAGSW) $(SYS_C) $(WIN_FILES)
 		copy sys.exe ..\bin
 		del sys.exe
 
