@@ -44,8 +44,8 @@ oemfat16.h:	..\boot\oemfat16.bin bin2c.com
 		del sys.com
 
 ..\bin\sys.exe:	$(SYS_C) sys.h ..\hdr\*.h fat12com.h fat16com.h fat32chs.h fat32lba.h oemfat12.h oemfat16.h config.h
-		$(CL) $(CFLAGST) $(SYS_C) $(DOS_FILES)
-		$(CL) $(CFLAGSW) $(SYS_C) $(WIN_FILES)
+		$(CL) $(CFLAGSC) $(SYS_C) $(DOS_FILES)
+		ECHO $(CL) $(CFLAGSW) $(SYS_C) $(WIN_FILES)
 		copy sys.exe ..\bin
 		del sys.exe
 

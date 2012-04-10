@@ -316,7 +316,7 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
         }
         else if (memicmp(argp, "BSCOUNT", 7) == 0) /* how many SECTOR_SIZE sectors boot code is */
         {
-          /* opts->??? = atoi(argv[argno]); */
+          /* opts->??? = (WORD)strtol(argv[argno], NULL, 10); */
           printf("Warning: ignoring option BSCOUNT\n");
         }
         else
