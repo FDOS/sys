@@ -40,6 +40,9 @@ void showHelpAndExit(void)
       "             to write to *instead* of real boot sector\n"
       "  {option} is one or more of the following:\n"
       "  /BOTH    : write to *both* the real boot sector and the image file\n"
+#ifdef USEBOOTMANAGER
+      "  /BOOTMGR : add to boot manager menu (can't be used with /BOTH)\n"
+#endif
       "  /BOOTONLY: do *not* copy kernel / shell, only update boot sector or image\n"
       "  /UPDATE  : copy kernel and update boot sector (do *not* copy shell)\n"
       "  /OEM     : indicates boot sector, filenames, and load segment to use\n"

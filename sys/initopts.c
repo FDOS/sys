@@ -32,6 +32,9 @@
 #define FREEDOS_FILES      { "KERNEL.SYS", NULL, 0x60/*:0*/, 1, 0 },
 DOSBootFiles bootFiles[] = {
   /* Note: This order is the order OEM:AUTO uses to determine DOS flavor. */
+#ifdef OEM_FILES
+OEM_FILES
+#endif
 #ifndef DRSYS
   /* FreeDOS */   FREEDOS_FILES
 #endif
@@ -47,29 +50,52 @@ DOSBootFiles bootFiles[] = {
   /* Rx-DOS  */ { "RXDOSBIO.SYS", "RXDOS.SYS", /*0x70:*/0x0, 0, 1 },
   /* DRMK    */ { "DELLBIO.BIN", "DELLRMK.BIN", /*0x70:*/0x0, 0, 1 },
 #endif
+#ifdef FREELDR
+  /* ReactOS */ { "FREELDR.SYS", "FREELDR.INI", /*0x0800:*/0x0, 1, 0 },
+#if 0
+  /* NTLdr   */ { "NTLDR", "BOOT.INI", /*0x70:*/0x0, 0, 0 },
+  /* NTBtMgr */ { "BOOTMGR", NULL, /*0x70:*/0x0, 0, 0 },
+#endif
+#endif
 };
 #define DOSFLAVORS (sizeof(bootFiles) / sizeof(*bootFiles))
 
 /* associate friendly name with index into bootFiles array */
 #define OEM_AUTO (-1) /* attempt to guess DOS on source drive */
-#ifndef DRSYS
-#define OEM_FD     0  /* standard FreeDOS mode */
-#define OEM_EDR    1  /* use FreeDOS boot sector, but OEM names */
-#define OEM_DR     2  /* FD boot sector,(Enhanced) DR-DOS names */
+#ifdef OEM_FILES
+#define MSG_BASE   1
+#define OEM_CUSTOM 0
 #else
-#define OEM_FD     2  /* standard FreeDOS mode */
-#define OEM_EDR    0  /* use FreeDOS boot sector, but OEM names */
-#define OEM_DR     1  /* FD boot sector,(Enhanced) DR-DOS names */
+#define MSG_BASE   0
+#endif
+#ifndef DRSYS
+#define OEM_FD     (MSG_BASE+0)  /* standard FreeDOS mode */
+#define OEM_EDR    (MSG_BASE+1)  /* use FreeDOS boot sector, but OEM names */
+#define OEM_DR     (MSG_BASE+2)  /* FD boot sector,(Enhanced) DR-DOS names */
+#else
+#define OEM_FD     (MSG_BASE+2)  /* standard FreeDOS mode */
+#define OEM_EDR    (MSG_BASE+0)  /* use FreeDOS boot sector, but OEM names */
+#define OEM_DR     (MSG_BASE+1)  /* FD boot sector,(Enhanced) DR-DOS names */
 #endif
 #ifdef WITHOEMCOMPATBS
-#define OEM_PC     3  /* use PC-DOS compatible boot sector and names */ 
-#define OEM_MS     4  /* use PC-DOS compatible BS with MS names */
-#define OEM_W9x    5  /* use PC-DOS compatible BS with MS names */
-#define OEM_RX     6  /* use PC-DOS compatible BS with Rx names */
-#define OEM_DRMK   7  /* use PC-DOS compatible BS with Dell names */
+#define OEM_PC     (MSG_BASE+3)  /* use PC-DOS compatible boot sector and names */ 
+#define OEM_MS     (MSG_BASE+4)  /* use PC-DOS compatible BS with MS names */
+#define OEM_W9x    (MSG_BASE+5)  /* use PC-DOS compatible BS with MS names */
+#define OEM_RX     (MSG_BASE+6)  /* use PC-DOS compatible BS with Rx names */
+#define OEM_DRMK   (MSG_BASE+7)  /* use PC-DOS compatible BS with Dell names */
+#endif
+#ifdef FREELDR
+#define OEM_FLDR   (MSG_BASE+8)  /* use FreeLoader - Reactos compatible mode */
+#if 0
+#define OEM_NLDR   (MSG_BASE+9)  /* use NTLoader - MS Windows NT 3,4,5 mode */
+#define OEM_NMGR   (MSG_BASE+10) /* use BootManager - MS Windows NT 6,7 mode */
+#endif
 #endif
 
 CONST char * msgDOS[DOSFLAVORS] = {  /* order should match above items */
+#ifdef OEM_FILES
+  "OEM mode\n",  /* only shown if custom kernel files used */
+#endif
   "\n",  /* In standard FreeDOS/EnhancedDR mode, don't print anything special */
 #ifndef DRSYS
   "Enhanced DR DOS (OpenDOS Enhancement Project) mode\n",
@@ -85,10 +111,17 @@ CONST char * msgDOS[DOSFLAVORS] = {  /* order should match above items */
   "RxDOS compatibility mode\n",
   "Dell Real Mode Kernel (DRMK) mode\n",
 #endif
+#ifdef FREELDR
+  "ReactOS FreeLdr\n"
+#if 0
+  "NTLdr\n"
+  "NTBtMgr\n"
+#endif
+#endif
 };
 
 
-#ifdef WIN32
+#ifdef _WIN32
 #define getcurdrive -1+(unsigned)_getdrive
 #else
 #ifndef __WATCOMC__
@@ -184,6 +217,7 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
       /* indicates compatibility mode, fs, filenames, and load segment to use */
       else if (memicmp(argp, "OEM", 3) == 0)
       {
+        char *msgBadOEM = "%s: unknown OEM qualifier %s\n";
         argp += 3;
         if (!*argp)
             opts->flavor = OEM_AUTO;
@@ -208,20 +242,71 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
           else if (memicmp(argp, "DE", 2) == 0) /* DELL */
             opts->flavor = OEM_DRMK;
 #endif
+#ifdef FREELDR
+          else if (memicmp(argp, "FRL", 3) == 0)
+            opts->flavor = OEM_FLDR;
+#if 0
+          else if (memicmp(argp, "NT", 2) == 0)
+            opts->flavor = OEM_NLDR;
+#endif
+#endif
           else if (memicmp(argp, "FD", 2) == 0)
             opts->flavor = OEM_FD;
           else
           {
-            printf("%s: unknown OEM qualifier %s\n", pgm, argp);
+            printf(msgBadOEM, pgm, argp);
             showHelpAndExit();
           }
         }
         else
         {
-          printf("%s: unknown OEM qualifier %s\n", pgm, argp);
+          printf(msgBadOEM, pgm, argp);
           showHelpAndExit();
         }
       }
+#ifdef USEBOOTMANAGER
+      /* indicates compatibility mode, fs, filenames, and load segment to use */
+      else if (memicmp(argp, "BTMGR", 5) == 0)
+      {
+        char *msgBadBtMgr = "%s: unknown boot manager %s\n";
+        argp += 5;
+        if (!*argp)
+            /* auto detect boot manager to add entry to */
+            opts->addToBtMgr = USEBTMGR;
+        else if (*argp == ':')
+        {
+          argp++;  /* point to FreeLDR/NTLDR/SYSLINUX that follows */
+          if (memicmp(argp, "AUTO", 4) == 0)
+            /* auto detect boot manager to add entry to */
+            opts->addToBtMgr = USEBTMGR;
+          else if (memicmp(argp, "SYS"/*LINUX*/, 3) == 0)
+            /* use specified boot manager to add entry to */
+            opts->addToBtMgr = SYSLINUX;
+          else if (memicmp(argp, "Fre"/*eLdr*/, 3) == 0)
+            /* use specified boot manager to add entry to */
+            opts->addToBtMgr = FREELDR;
+          else if (memicmp(argp, "NTL"/*DR*/, 3) == 0)
+            /* use specified boot manager to add entry to */
+            opts->addToBtMgr = NTLDR;
+          else if (memicmp(argp, "GRUB", 5) == 0)
+            /* use specified boot manager to add entry to */
+            opts->addToBtMgr = GRUB;
+          else if (memicmp(argp, "GRUB2", 5) == 0)
+            /* use specified boot manager to add entry to */
+            opts->addToBtMgr = GRUB2;
+          else
+          {
+            printf(msgBadBtMgr, pgm, argp);
+            showHelpAndExit();
+          }
+        }
+        else
+        {
+          printf(msgBadBtMgr, pgm, argp);
+          showHelpAndExit();
+        }
+      }
+#endif /* USEBOOTMANAGER */
       /* override auto options */
       else if (memicmp(argp, "FORCE", 5) == 0)
       {
@@ -379,7 +464,7 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
       printf("%s: invalid argument %s\n", pgm, argv[argno]);
       showHelpAndExit();
     }
-  }
+  } /* for */
 
   /* set dest path */
   if (!drivearg)
@@ -390,6 +475,20 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
     printf("%s: drive %c must be A:..Z:\n", pgm, *(argv[drivearg]));
     exit(1);
   }
+
+#ifdef USEBOOTMANAGER
+  /* if want to add to boot manager but no name set, use default; error if /BOTH used */
+  if (opts->addToBtMgr != NONE)
+  {
+    if (opts->writeBS)
+    {
+      printf("%s: /BOTH and /BTMGR can NOT both be used!\n", pgm);
+      showHelpAndExit();
+    }
+    if (!opts->bsFile)
+      opts->bsFile = "FREEDOS.BSS";
+  }
+#endif
   
   /* if neither BOTH nor a boot sector file specified, then write to boot record */
   if (!opts->bsFile)

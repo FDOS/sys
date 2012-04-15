@@ -28,6 +28,7 @@
 
 #include "sys.h"
 #include "diskio.h"
+#include <winioctl.h>
 
 void ShowErrorMsg(void)
 {
@@ -110,4 +111,40 @@ void lockDrive(unsigned drive) {}
 void unLockDrive(unsigned drive) {}
 
 /* returns default BPB (and other device parameters) */
-int getDeviceParms(unsigned drive, FileSystem fs, unsigned char *buffer) { return -1; }
+int getDeviceParms(unsigned drive, FileSystem fs, unsigned char *buffer)
+{
+  struct {
+    UBYTE filler1[11];
+    UWORD bsBytesPerSec;
+    UBYTE filler2[11];
+    UWORD bsSecPerTrack;
+    UWORD bsHeads;
+    ULONG bsHiddenSecs;
+  } fakeBPB = { 0 };
+  HANDLE hnd;
+  DWORD result;
+  DISK_GEOMETRY dskGeom;
+  PARTITION_INFORMATION partInfo;
+  
+  char *drivename = "A:\\";
+  drivename[0] = 'A' + drive;
+  hnd = CreateFileA(drivename, 0, FILE_SHARE_READ|FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+  if (hnd == INVALID_HANDLE_VALUE) return -1;
+
+  result = DeviceIoControl(hnd, IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0, &dskGeom, sizeof(dskGeom), &result/*unused*/, NULL);
+  if (result)
+    result = DeviceIoControl(hnd, IOCTL_DISK_GET_PARTITION_INFO, NULL, 0, &partInfo, sizeof(partInfo), &result/*unused*/, NULL);
+  CloseHandle(hnd);
+  
+  if (result)
+  {
+	/* truncation of types ok, values should not exceed max values of BPB types */
+    fakeBPB.bsBytesPerSec = (UWORD)dskGeom.BytesPerSector;
+    fakeBPB.bsSecPerTrack = (UWORD)dskGeom.SectorsPerTrack;
+    fakeBPB.bsHeads = (UWORD)dskGeom.TracksPerCylinder;
+    fakeBPB.bsHiddenSecs = partInfo.HiddenSectors;
+    return 0;
+  }
+
+  return -1;    
+}

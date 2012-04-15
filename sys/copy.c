@@ -39,6 +39,59 @@
 
 #define COPY_SIZE       0x4000
 
+
+#ifdef _WIN32
+
+void truename(char *dest, const char *src)
+{
+  if (_fullpath(dest, src, SYS_MAXPATH) == NULL)
+    strcpy(dest, src); /* oops! fallback to what user specified */
+}
+
+/*
+ * Returns TRUE if `drive` has at least `bytes` free space, FALSE otherwise.
+ */
+BOOL check_space(COUNT drive, ULONG bytes)
+{
+  ULARGE_INTEGER freeBytes;
+  char *drivename = "A:\\";
+  drivename[0] = 'A' + drive;
+  if (GetDiskFreeSpaceExA(drivename, &freeBytes, NULL, NULL))
+  {
+    if (freeBytes.QuadPart >= bytes) 
+      return TRUE;
+  }
+  return FALSE;
+} /* check_space */
+
+
+#define allocBlock(blksize) (BYTE *)malloc((unsigned)(blksize))
+#define freeBlock(ptr) free((void *)(ptr))
+
+#define normalizePtr(ptr)
+
+
+typedef struct _utimbuf filetime_t;
+
+/* get original file date and time */
+void getFileTime(int fdin, filetime_t *filetime)
+{
+  struct stat fstatbuf;
+  if (fstat(fdin, &fstatbuf)) 
+	  memset(&fstatbuf, 0, sizeof(fstatbuf));
+  filetime->actime =              /* access time */
+      filetime->modtime = fstatbuf.st_mtime;      /* modification time */
+}
+
+  /* set copied files time to match original */
+#ifdef _MSC_VER
+#define setFileTimeAndClose(fname, fd, filetime) _futime(fd, (struct _utimbuf *)filetime); close(fd)
+#else
+#define setFileTimeAndClose(fname, fd, filetime) close(fdout); _utime(fname, (struct _utimbuf *)filetime)
+#endif
+
+#else
+
 #ifdef __WATCOMC__
 
 long filelength(int __handle);
@@ -59,26 +112,21 @@ long filelength(int __handle);
       modify [cx] \
       value [dx ax];
 
-#endif
-
-
-
-/* static */ struct xfreespace x; /* we make this static to be 0 by default -
-                                     this avoids FAT misdetections */
-
-#ifdef __WATCOMC__
-
 void truename(char far *dest, const char *src);
-#pragma aux truename = \
-      "mov ah,0x60"       \
-      "int 0x21"          \
+#pragma aux truename =  \
+      "mov ah,0x60"     \
+      "int 0x21"        \
       parm [es di] [si];
 
-#elif defined _WIN32
-void truename(char *dest, const char *src)
-{
-	strcpy(dest, src);
-}
+unsigned getextdrivespace(void far *drivename, void *buf, unsigned buf_size);
+#pragma aux getextdrivespace =  \
+      "mov ax, 0x7303"    \
+      "stc"               \
+      "int 0x21"          \
+      "sbb ax, ax"        \
+      parm [es dx] [di] [cx] \
+      value [ax];
+
 #else
 
 void truename(char *dest, const char *src)
@@ -94,27 +142,6 @@ void truename(char *dest, const char *src)
   intdosx(&regs, &regs, &sregs);
 } /* truename */
 
-#endif
-
-#ifdef __WATCOMC__
-
-unsigned getextdrivespace(void far *drivename, void *buf, unsigned buf_size);
-#pragma aux getextdrivespace =  \
-      "mov ax, 0x7303"    \
-      "stc"               \
-      "int 0x21"          \
-      "sbb ax, ax"        \
-      parm [es dx] [di] [cx] \
-      value [ax];
-
-#else /* !defined __WATCOMC__ */
-
-#ifdef _WIN32
-unsigned getextdrivespace(void far *drivename, void *buf, unsigned buf_size)
-{
-	return MAXLONG;
-}
-#else
 unsigned getextdrivespace(void far *drivename, void *buf, unsigned buf_size)
 {
   union REGS regs;
@@ -132,20 +159,16 @@ unsigned getextdrivespace(void far *drivename, void *buf, unsigned buf_size)
   intdosx(&regs, &regs, &sregs);
   return regs.x.ax == 0x7300 || regs.x.cflag;
 } /* getextdrivespace */
-#endif
-#endif /* defined __WATCOMC__ */
 
+#endif /* __WATCOMC__ */
 
-
+/* static */ struct xfreespace x; /* we make this static to be 0 by default -
+                                     this avoids FAT misdetections */
 /*
  * Returns TRUE if `drive` has at least `bytes` free space, FALSE otherwise.
- * put_sector() must have been already called to determine file system type.
  */
 BOOL check_space(COUNT drive, ULONG bytes)
 {
-#ifdef _WIN32
-  return TRUE;
-#else
   /* try extended drive space check 1st, if unsupported or other error fallback to standard check */
   char *drivename = "A:\\";
   drivename[0] = 'A' + drive;
@@ -164,15 +187,11 @@ BOOL check_space(COUNT drive, ULONG bytes)
   }
   else
     return x.xfs_freeclusters > (bytes / (x.xfs_clussize * x.xfs_secsize));
-#endif
 } /* check_space */
 
 
-BYTE copybuffer[COPY_SIZE];
-
-#ifndef _WIN32
-/* allocate memory from DOS, return 0 on success, nonzero otherwise */
-int alloc_dos_mem(ULONG memsize, UWORD *theseg)
+/* allocate memory from DOS, return NULL on error, pointer to buffer otherwise */
+BYTE FAR* allocBlock(ULONG memsize)
 {
   unsigned dseg;
 #ifdef __TURBOC__
@@ -180,17 +199,63 @@ int alloc_dos_mem(ULONG memsize, UWORD *theseg)
 #else
   if (_dos_allocmem((unsigned)((memsize+15)>>4), &dseg)!=0)
 #endif
-    return -1; /* failed to allocate memory */
-
-  *theseg = (UWORD)dseg;
-  return 0; /* success */
+    return NULL; /* failed to allocate memory */
+    
+  return MK_FP(dseg, 0); /* success */
 }
+
 #ifdef __TURBOC__
-#define dos_freemem freemem
+#define freeBlock(ptr) freemem(FP_SEG(ptr))
 #else
-#define dos_freemem _dos_freemem
+#define freeBlock(ptr) _dos_freemem(FP_SEG(ptr))
 #endif
+
+/* adjust segment:offset to maintain valid, takes a pointer to a far pointer to updated */
+void normalizePtr(BYTE FAR **ptr)
+{
+  register BYTE FAR *bufptr = *ptr;
+  if (FP_OFF(bufptr) > 0x7777) /* watcom needs this in tiny model */
+  {
+    bufptr = MK_FP(FP_SEG(bufptr)+0x700, FP_OFF(bufptr)-0x7000);
+  }
+  *ptr = bufptr;
+}
+
+
+#if defined __WATCOMC__ || defined _MSC_VER /* || defined __BORLANDC__ */
+  typedef struct {
+  #if defined(__WATCOMC__) && __WATCOMC__ < 1280
+    unsigned short date, time;
+  #else
+    unsigned date, time;
+  #endif
+  } filetime_t;
+#elif defined __TURBOC__
+  typedef struct ftime filetime_t;
 #endif
+
+/* get original file date and time */
+#if defined __WATCOMC__ || defined _MSC_VER /* || defined __BORLANDC__ */
+  #define getFileTime(fdin, filetime) _dos_getftime(fdin, &((filetime)->date), &((filetime)->time));
+#elif defined __TURBOC__
+  #define getFileTime(fdin, filetime) getftime(fdin, filetime);
+#endif
+
+/* set copied files time to match original */
+#if defined __WATCOMC__ || defined _MSC_VER /* || defined __BORLANDC__ */
+  #define setFileTimeAndClose(fname, fd, filetime) _dos_setftime(fd, (filetime)->date, (filetime)->time); close(fd)
+#elif defined __TURBOC__
+  #define setFileTimeAndClose(fname, fd, filetime) setftime(fd, ftime); close(fd)
+#endif
+
+
+#endif /* _WIN32 */
+
+
+
+
+BYTE copybuffer[COPY_SIZE];
+
 
 /* copies file (path+filename specified by srcFile) to drive:\filename */
 BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename)
@@ -200,16 +265,7 @@ BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename)
   unsigned ret;
   int fdin, fdout;
   ULONG copied = 0;
-
-#if defined __WATCOMC__ || defined _MSC_VER /* || defined __BORLANDC__ */
-#if defined(__WATCOMC__) && __WATCOMC__ < 1280
-  unsigned short date, time;
-#else
-  unsigned date, time;
-#endif
-#elif defined __TURBOC__
-  struct ftime ftime;
-#endif
+  filetime_t filetime;
 
   printf("Copying %s...\n", source);
 
@@ -228,12 +284,8 @@ BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename)
     return FALSE;
   }
 
-#ifdef _WIN32
-#elif defined __WATCOMC__ || defined _MSC_VER /* || defined __BORLANDC__ */
-  _dos_getftime(fdin, &date, &time);
-#elif defined __TURBOC__
-  getftime(fdin, &ftime);
-#endif
+  /* get original creation file date & time */
+  getFileTime(fdin, &filetime);
 
   if (!check_space(drive, filelength(fdin)))
   {
@@ -265,9 +317,6 @@ BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename)
   }
  #else /* read in whole file, then write out whole file */
   {
-#ifndef _WIN32
-    UWORD theseg;
-#endif
     ULONG filesize;
     BYTE far *buffer, far *bufptr;
     UWORD offs;
@@ -275,16 +324,12 @@ BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename)
     
     /* get length of file to copy, then allocate enough memory for whole file */
     filesize = filelength(fdin);
-    #ifdef WIN32
-      buffer = (BYTE *)malloc((unsigned)filesize);
-    #else
-      if (alloc_dos_mem(filesize, &theseg)!=0)
+      buffer = allocBlock(filesize);
+      if (buffer == NULL)
       {
         printf("Not enough memory to buffer %lu bytes for %s\n", filesize, source);
         return FALSE;
       }
-      buffer = MK_FP(theseg, 0);
-    #endif
     bufptr = buffer;
 
     /* read in whole file, a chunk at a time; adjust size of last chunk to match remaining bytes */
@@ -295,10 +340,7 @@ BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename)
       {
         *bufptr = copybuffer[offs];
         bufptr++;
-        if (FP_OFF(bufptr) > 0x7777) /* watcom needs this in tiny model */
-        {
-          bufptr = MK_FP(FP_SEG(bufptr)+0x700, FP_OFF(bufptr)-0x7000);
-        }
+        normalizePtr(&bufptr);
       }
       /* keep track of how much read in, and only read in filesize bytes */
       copied += ret;
@@ -319,10 +361,7 @@ BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename)
       {
         copybuffer[offs] = *bufptr;
         bufptr++;
-        if (FP_OFF(bufptr) > 0x7777) /* watcom needs this in tiny model */
-        {
-          bufptr = MK_FP(FP_SEG(bufptr)+0x700, FP_OFF(bufptr)-0x7000);
-        }
+        normalizePtr(&bufptr);
       }
 
       /* write the data to disk, abort on any error */
@@ -335,36 +374,16 @@ BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename)
       }
     } while (copied < filesize);
 
-    #ifdef WIN32
-      free((void *)buffer);
-    #else
-      dos_freemem(theseg);
-    #endif
+    freeBlock(buffer);
   }
- #endif
-
-#ifdef _WIN32
-#elif defined __WATCOMC__ || defined _MSC_VER /* || defined __BORLANDC__ */
-  _dos_setftime(fdout, date, time);
-#elif defined __TURBOC__
-  setftime(fdout, &ftime);
-#endif
+ #endif /* simple copy loop */
 
   /* reduce disk swap on single drives, close file on drive last accessed 1st */
-  close(fdout);
 
-#ifdef __SOME_OTHER_COMPILER__
-  {
-#include <utime.h>
-    struct utimbuf utimb;
-
-    utimb.actime =              /* access time */
-        utimb.modtime = fstatbuf.st_mtime;      /* modification time */
-    utime(dest, &utimb);
-  };
-#endif
-
-  /* and close input file, usually same drive as next action will access */
+  /* set copied files time to match original and close file */
+  setFileTimeAndClose(dest, fdout, &filetime);
+  
+  /* close input file, usually same drive as next action will access */
   close(fdin);
 
 

@@ -32,30 +32,24 @@
 #include "config.h"
 
 #ifndef SYS_NAME
+#ifndef DRSYS
 #define SYS_NAME "FreeDOS"
-#endif
-
-#ifdef DRSYS
-#undef SYS_NAME
+#else
 #define SYS_NAME "Enhanced DR-DOS"
-#ifdef FDCONFIG
-#undef FDCONFIG
-#endif
-#ifdef WITHOEMCOMPATBS
-#undef WITHOEMCOMPATBS
 #endif
 #endif
 
-
-#include <stdlib.h>
-#include <ctype.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <string.h>
 
 #ifdef _WIN32
 #include <windows.h>
 #endif
+#include <stdlib.h>
+#include <ctype.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/utime.h>
+#include <string.h>
+
 #include <dos.h>
 #define SYS_MAXPATH   260
 #include "portab.h"
@@ -66,7 +60,10 @@
 
 #ifdef _WIN32
 #include <stdio.h>
+#include <io.h>
+#ifndef __WATCOMC__
 #include <direct.h>
+#endif
 #else
 /* These definitions deliberately put here instead of
  * #including <stdio.h> to make executable MUCH smaller
@@ -74,11 +71,7 @@
  */
 extern int VA_CDECL printf(CONST char FAR * fmt, ...);
 extern int VA_CDECL sprintf(char FAR * buff, CONST char FAR * fmt, ...);
-#endif
 
-#ifndef __WATCOMC__
-#include <io.h>
-#else
 int stat(const char *file_name, struct stat *statbuf);
 #endif
 
@@ -92,6 +85,9 @@ int FDKrnConfigMain(int argc, char **argv);
 
 /* Indicates file system destination currently formatted as */
 typedef enum {UNKNOWN=0, FAT12 = 12, FAT16 = 16, FAT32 = 32} FileSystem;
+
+/* Indicates boot managers to add to */
+typedef enum {NONE=0, USEBTMGR=1, SYSLINUX=2, FREELDR=3, NTLDR=4, GRUB=6, GRUB2=7} BtMgr;
 
 /* FreeDOS sys, we default to our kernel and load segment, but
    if not found (or explicitly given) support OEM DOS variants
@@ -122,6 +118,7 @@ typedef struct SYSOptions {
   BOOL copyKernel;              /* true to copy kernel files */
   BOOL copyShell;               /* true to copy command interpreter */
   BOOL writeBS;                 /* true to write boot sector to drive/partition LBA 0 */
+  BtMgr addToBtMgr;             /* add entry to existing boot manager */
   BYTE *bsFile;                 /* file name & path to save bs to when saving to file */
   BYTE *bsFileOrig;             /* file name & path to save original bs when backing up */
   BYTE *altBSCode;              /* file name & path for external boot code file */

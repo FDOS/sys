@@ -39,6 +39,12 @@
 #include "oemfat12.h"
 #include "oemfat16.h"
 #endif
+#ifdef WITHNTFS
+#include "ntfs.h"
+#endif
+#ifdef FREELDR
+#include "freeldr.h"
+#endif
 
 
 #define SEC_SIZE        512
@@ -309,6 +315,7 @@ void correct_bpb(FileSystem fs, unsigned drive, struct bootsectortype *oldboot, 
 {
   UBYTE default_bpb_buffer[0x5c];
   struct bootsectortype *default_bpb;
+  char *valuesMsg = " boot sector values: % sectors/track: %u, heads: %u, hidden: %lu\n";
 
   /* bit 0 set if function to use current BPB, clear if Device
            BIOS Parameter Block field contains new default BPB
@@ -330,17 +337,14 @@ void correct_bpb(FileSystem fs, unsigned drive, struct bootsectortype *oldboot, 
     return;
 
   if (verbose)
-  {
-    printf("Old boot sector values: sectors/track: %u, heads: %u, hidden: %lu\n",
-           oldboot->bsSecPerTrack, oldboot->bsHeads, oldboot->bsHiddenSecs);
-    printf("Using default boot sector values: sectors/track: %u, heads: %u, "
-           "hidden: %lu\n", default_bpb->bsSecPerTrack, default_bpb->bsHeads,
-           default_bpb->bsHiddenSecs);
-  }
+    printf(valuesMsg, "Old", oldboot->bsSecPerTrack, oldboot->bsHeads, oldboot->bsHiddenSecs);
 
   oldboot->bsSecPerTrack = default_bpb->bsSecPerTrack;
   oldboot->bsHeads = default_bpb->bsHeads;
   oldboot->bsHiddenSecs = default_bpb->bsHiddenSecs;
+  
+  if (verbose)
+    printf(valuesMsg, "Using default ", oldboot->bsSecPerTrack, oldboot->bsHeads, oldboot->bsHiddenSecs);
 }
 
 

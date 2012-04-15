@@ -33,7 +33,7 @@ extern int VA_CDECL printf(CONST char FAR * fmt, ...);
 extern int VA_CDECL sprintf(char FAR * buff, CONST char FAR * fmt, ...);
 #endif
 
-#ifdef __WATCOMC__
+#if defined __WATCOMC__ && !defined(_WIN32)
 unsigned _dos_close(int handle);
 #define close _dos_close
 #define SEEK_SET 0

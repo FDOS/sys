@@ -38,6 +38,9 @@ oemfat12.h:	..\boot\oemfat12.bin bin2c.com
 oemfat16.h:	..\boot\oemfat16.bin bin2c.com
 		bin2c ..\boot\$*.bin $*.h $*
 
+ntfs.h:	..\boot\ntfs.bin bin2c.com
+		bin2c ..\boot\$*.bin $*.h $*
+
 ..\bin\sys.com:	$(SYS_C) sys.h ..\hdr\*.h fat12com.h fat16com.h fat32chs.h fat32lba.h oemfat12.h oemfat16.h config.h
 		$(CL) $(CFLAGST) $(SYS_C) $(DOS_FILES)
 		copy sys.com ..\bin
@@ -46,6 +49,8 @@ oemfat16.h:	..\boot\oemfat16.bin bin2c.com
 ..\bin\sys.exe:	$(SYS_C) sys.h ..\hdr\*.h fat12com.h fat16com.h fat32chs.h fat32lba.h oemfat12.h oemfat16.h config.h
 		$(CL) $(CFLAGSC) $(SYS_C) $(DOS_FILES)
 		ECHO $(CL) $(CFLAGSW) $(SYS_C) $(WIN_FILES)
+        ..\..\..\TOOLS\FIXHDR\fixstub sys.exe ..\bin\sysstub.exe
+		$(CLW) $(CFLAGSW) -D_WIN32 $(SYS_C) $(WIN_FILES)
 		copy sys.exe ..\bin
 		del sys.exe
 

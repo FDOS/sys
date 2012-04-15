@@ -10,6 +10,7 @@ LIBPATH=$(BASE)\lib286
 
 CC=$(BINPATH)\wcc
 CL=$(BINPATH)\wcl
+CLW=$(BINPATH)\wcl386
 
 # used for building the library
 
