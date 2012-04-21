@@ -113,6 +113,15 @@ Note: earlier versions of SYS used the option BOTH
 (without the slash /), but current versions require
 the forward slash for the /BOTH option.
 
+If enabled in build, the /BOOTMGR option can be 
+used to to add FreeDOS to boot manager menu.
+Sys will add a simple entry to the boot manager
+configuration file to chain to the FreeDOS 
+boot sector or if supported loading the kernel
+directly.  If a "bootsect" name is provided it
+will be used; default name is FREEDOS.BSS.
+An error occurs if used with the /BOTH option.
+
 The /BOOTONLY option may be used to avoid copying
 any files, only the boot sector (or optional bootsect
 file) while be written.

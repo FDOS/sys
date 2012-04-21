@@ -1,0 +1,24 @@
+/* to display extra information */
+#define DEBUG
+/* to enable display of sector dumps */
+// #define DDEBUG */
+/* include support for FAT32 file system */
+#define WITHFAT32
+/* include support for NTFS file system */
+#define WITHNTFS
+/* include support to configure FD kernel */
+#define FDCONFIG
+/* supported embedded core files */
+#define EMBEDDEDVFS
+/* include support for OEM MS/PC DOS 3.??-6.x */
+#define WITHOEMCOMPATBS
+/* include support to add entry to existing boot manager */
+#define USEBOOTMANAGER
+/* include support for Windows/ReactOS */
+#define FREELDR
+/* build Enhanced DR-DOS variant instead of default FreeDOS build */
+// #define DRSYS */
+/* OEM branded version */
+#define SYS_NAME "FreeDOS (Extended)"
+/* Optional, files and settings for default kernel */
+// #define OEM_FILES      { "KERNEL.SYS", NULL, 0x60/*:0*/, 1, 0 },

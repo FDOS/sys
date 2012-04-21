@@ -1,0 +1,4 @@
+/* include support for FAT32 file system */
+#define WITHFAT32
+/* include support to configure FD kernel */
+#define FDCONFIG
