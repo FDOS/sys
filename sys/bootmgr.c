@@ -82,16 +82,16 @@ static BOOL exists(const char *fname)
    and finally a subdirectory in boot directory (\boot\name\basename)
    returning NULL if file not found
 */
-static const char *getBootConfigFile(const char *basename, const char *name)
+static const char *getBootConfigFile(char drive, const char *basename, const char *name)
 {
   static char buffer[SYS_MAXPATH];
-  sprintf(buffer, "\\%s", basename);
+  sprintf(buffer, "%c:\\%s", drive, basename);
   if (exists(buffer)) return buffer;
   if (name != NULL)
   {
-    sprintf(buffer, "\\%s\\%s", name, basename);
+    sprintf(buffer, "%c:\\%s\\%s", drive, name, basename);
     if (exists(buffer)) return buffer;
-    sprintf(buffer, "\\boot\\%s\\%s", name, basename);
+    sprintf(buffer, "%c:\\boot\\%s\\%s", drive, name, basename);
     if (exists(buffer)) return buffer;
   }
   return NULL;
@@ -105,13 +105,11 @@ typedef void (* getConfigSectionTextFn)(char *buffer, const char *bsFilename, un
 */
 void getSyslinuxConfig(char *buffer, const char *bsFilename, unsigned drive)
 {
-  char bsf[SYS_MAXPATH];
-  truename(bsf, bsFilename);
   sprintf(buffer, "\n" \
     "LABEL %s\n" \
     "  BOOT %s\n" /* maybe "BSS %s\n" */ \
     "\n",
-    menuName, bsf);
+    menuName, bsFilename);
 }
 
 /* entry for freeldr.ini (check /)
@@ -119,8 +117,6 @@ void getSyslinuxConfig(char *buffer, const char *bsFilename, unsigned drive)
 */
 void getFreeLdrConfig(char *buffer, const char *bsFilename, unsigned drive)
 {
-  char bsf[SYS_MAXPATH];
-  truename(bsf, bsFilename);
   sprintf(buffer, "\n" \
     "[Operating Systems]\n" \
     "FreeDOS=%s\n" \
@@ -128,7 +124,7 @@ void getFreeLdrConfig(char *buffer, const char *bsFilename, unsigned drive)
     "BootType=BootSector\n" \
     "BootSector=%s\n" \
     "\n",
-    menuName, bsf);
+    menuName, bsFilename);
 }
 
 
@@ -139,22 +135,36 @@ void getFreeLdrConfig(char *buffer, const char *bsFilename, unsigned drive)
 */
 void getNtldrConfig(char *buffer, const char *bsFilename, unsigned drive)
 {
-  char bsf[SYS_MAXPATH];
-  truename(bsf, bsFilename);
   sprintf(buffer, "\n" \
     "%s=%s\n" \
     "\n",
-    bsf, menuName);
+    bsFilename, menuName);
 }
 
 static const char *grubFormatDrive(unsigned drive)
 {
   static char disk[8];
-  if (drive >= 0x80)
-    sprintf(disk, "hd%u", (drive-0x80));
+  if (drive >= 'C')
+    sprintf(disk, "hd%u", (drive-'C'));
   else
-    sprintf(disk, "fd%u", drive);
+    sprintf(disk, "fd%u", (drive-'A'));
   return disk;
+}
+
+static const char *grubFormatPath(const char *bsFilename)
+{
+  static char buffer[SYS_MAXPATH];
+  register char *p;
+  /* skip drive */
+  if (bsFilename[1] == ':')
+    strcpy(buffer, bsFilename+2);
+  else
+    strcpy(buffer, bsFilename);
+  for (p = buffer; *p != '\0'; p++)
+  {
+    if (*p == '\\') *p = '/';
+  }  
+  return bsFilename;
 }
 
 /* entry for menu.lst (check /, /grub/, /boot/grub/)
@@ -165,10 +175,10 @@ void getGrubConfig(char *buffer, const char *bsFilename, unsigned drive)
   sprintf(buffer, "\n" \
     "title %s\n" \
     "root (%s,0)\n" /* or possibly "rootnoverify (hd0,0)\n", use fd0 for floppy, note 0 based partitions */ \
-    "chainloader /%s\n"   /* or chainloader +1 to read from drive or even better chainloader /kernel.sys */ \
+    "chainloader %s\n"   /* or chainloader +1 to read from drive or even better chainloader /kernel.sys */ \
     /* "makeactive\n" */ \
     "\n",
-    menuName, grubFormatDrive(drive), bsFilename);
+    menuName, grubFormatDrive(drive), grubFormatPath(bsFilename));
 }
 
 /* entry for grub.cfg (burg.cfg also?) (check /, /grub/, /boot/grub/, /boot/grub2/, /grub2/)
@@ -180,11 +190,11 @@ void getGrub2Config(char *buffer, const char *bsFilename, unsigned drive)
     "menuentry %s {\n" \
     "insmod chain\n" \
     "set root=(%s,1)\n"  /* can leave out so uses default (where grub installed), also supports hd0=0x80, note 1 based partitions */ \
-    "chainloader /%s\n"   /* or chainloader +1 to read from drive */ \
+    "chainloader %s\n"   /* or chainloader +1 to read from drive */ \
     /* "parttool ${root} boot+\n" */ \
     "}\n" \
     "\n",
-    menuName, grubFormatDrive(drive), bsFilename);
+    menuName, grubFormatDrive(drive), grubFormatPath(bsFilename));
 }
 
 
@@ -193,6 +203,7 @@ BOOL writeBootLoaderEntry(SYSOptions *opts)
   getConfigSectionTextFn fn = NULL;
   const char *cfgFilename;
   static char buffer[4*SYS_MAXPATH];
+  char drive = 'A' + opts->dstDrive;
   
   if (opts->verbose)
     printf("Adding entry to boot manager.\n");
@@ -203,7 +214,7 @@ BOOL writeBootLoaderEntry(SYSOptions *opts)
     case USEBTMGR:
       /* fall through testing each in order they appear here */
     case SYSLINUX:
-      if ((cfgFilename = getBootConfigFile("syslinux.cfg", "syslinux")) != NULL)
+      if ((cfgFilename = getBootConfigFile(drive, "syslinux.cfg", "syslinux")) != NULL)
       {
         #ifdef DEBUG
           printf("SysLinux\n");
@@ -213,7 +224,7 @@ BOOL writeBootLoaderEntry(SYSOptions *opts)
         break;
       }
     case FREELDR:
-      if ((cfgFilename = getBootConfigFile("freeldr.ini", NULL)) != NULL)
+      if ((cfgFilename = getBootConfigFile(drive, "freeldr.ini", NULL)) != NULL)
       {
         #ifdef DEBUG
           printf("FreeLdr\n");
@@ -223,7 +234,7 @@ BOOL writeBootLoaderEntry(SYSOptions *opts)
         break;
       }
     case NTLDR:
-      if ((cfgFilename = getBootConfigFile("boot.ini", NULL)) != NULL)
+      if ((cfgFilename = getBootConfigFile(drive, "boot.ini", NULL)) != NULL)
       {
         #ifdef DEBUG
           printf("Ntldr\n");
@@ -233,7 +244,7 @@ BOOL writeBootLoaderEntry(SYSOptions *opts)
         break;
       }
     case GRUB:
-      if ((cfgFilename = getBootConfigFile("menu.lst", "grub")) != NULL)
+      if ((cfgFilename = getBootConfigFile(drive, "menu.lst", "grub")) != NULL)
       {
         #ifdef DEBUG
           printf("Grub Legacy\n");
@@ -243,8 +254,8 @@ BOOL writeBootLoaderEntry(SYSOptions *opts)
         break;
       }
     case GRUB2:
-      if ( ((cfgFilename = getBootConfigFile("grub.cfg", "grub2")) != NULL) ||
-           ((cfgFilename = getBootConfigFile("grub.cfg", "grub")) != NULL) )
+      if ( ((cfgFilename = getBootConfigFile(drive, "grub.cfg", "grub2")) != NULL) ||
+           ((cfgFilename = getBootConfigFile(drive, "grub.cfg", "grub")) != NULL) )
       {
         #ifdef DEBUG
           printf("Grub2\n");
@@ -256,7 +267,9 @@ BOOL writeBootLoaderEntry(SYSOptions *opts)
   }
   if (fn != NULL)
   {
-    fn(buffer, opts->bsFile, opts->defBootDrive);
+    char bsf[SYS_MAXPATH];
+    truename(bsf, opts->bsFile);
+    fn(buffer, bsf, opts->defBootDrive);
     #ifdef DEBUG
       if (opts->verbose)
           printf("Updating %s with:\n%s", cfgFilename, buffer);
