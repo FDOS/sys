@@ -152,24 +152,6 @@ VOID dump_sector(unsigned char far * sec)
 #endif
 
 
-/* copies ASCIIZ string to directory 83 format padded with spaces */
-void setFilename(char *buffer, char const *filename)
-{
-  int i;
-  /* pad with spaces, if name.ext is less than 8.3 blanks filled with spaces */
-  memset(buffer, ' ', 11);
-  /* copy over up to 8 characters of filename and 3 characters of extension */
-  for (i = 0; *filename && (*filename != '.'); i++, filename++)
-    if (i<FNAME_SIZE) buffer[i] = toupper(*filename);
-  if (*filename == '.')
-  {
-    filename++; /* skip past . */
-    for (i = 8; (i < 11) && *filename; i++, filename++)
-      buffer[i] = toupper(*filename);
-  }
-}
-
-
 typedef enum {read_bs = 0, write_bs = 1} readWriteMode;
 
 /* reads or writes boot sector (1st SEC_SIZE bytes) from file */
@@ -283,27 +265,113 @@ void saveDriveBackupBS(SYSOptions *opts, UBYTE *bootsector)
 
 
 #ifdef WITHOEMCOMPATBS
+
+/* copies ASCIIZ string to directory 83 format padded with spaces */
+static void printFilename(BYTE *n)
+{
+  BYTE fname[12];
+  memcpy(fname, n, 11);
+  fname[11] = '\0';
+  printf("{%s}\n", fname);
+}
+
+static void setFilename(char *buffer, char const *filename)
+{
+  int i;
+  /* pad with spaces, if name.ext is less than 8.3 blanks filled with spaces */
+  memset(buffer, ' ', 11);
+  /* copy over up to 8 characters of filename and 3 characters of extension */
+  for (i = 0; *filename && (*filename != '.'); i++, filename++)
+    if (i<FNAME_SIZE) buffer[i] = toupper(*filename);
+  if (*filename == '.')
+  {
+    filename++; /* skip past . */
+    for (i = 8; (i < 11) && *filename; i++, filename++)
+      buffer[i] = toupper(*filename);
+  }  
+}
+
 /* for FAT12/16 rearranges root directory so kernel & dos files are 1st two entries */
 void updateRootDir(SYSOptions *opts)
 {
   struct dirent *dir;
   struct lfn_entry *lfn;
   BYTE buffer[SEC_SIZE];
-  BYTE filename[11];
+  BYTE kname[FNAME_SIZE+FEXT_SIZE];
+  BYTE dname[FNAME_SIZE+FEXT_SIZE];
+  ULONG sectnum, lastsect;
+  BYTE entry1[DIRENT_SIZE], entry2[DIRENT_SIZE];
+  int dirty = 0;
   
-  //opts->kernel.kernel, opts->kernel.dos
-  setFilename(filename, opts->kernel.kernel);
-  // read in sector
-  if (MyAbsReadWrite(opts->dstDrive, 1, opts->rootSector, buffer, 0) != 0)
+  /* convert ASCIIZ 8.3 format to 83 space filled format same as dirent */
+  printf("[%s and %s]\n", opts->kernel.kernel, opts->kernel.dos);
+  setFilename(kname, opts->kernel.kernel);
+  setFilename(dname, opts->kernel.dos);
+  
+  /* loop through all root dir sectors */
+  lastsect = opts->rootSector + opts->rootDirSectors;
+  for (sectnum = opts->rootSector; sectnum < lastsect; sectnum++)
   {
-    printf("Error reading root directory, not updated!\n");
-    return;
-  }
-  // loop through directory entries until kernel found or 
-  dir = (struct dirent *)buffer;
-  lfn = (struct lfn_entry *)dir;
-  if ((void*)dir == (void*)lfn) dir = (void *)lfn;
+    /* read in sector */
+    if (MyAbsReadWrite(opts->dstDrive, 1, sectnum, buffer, 0) != 0)
+    {
+      printf("Error reading root directory, not updated!\n");
+      return;
+    }
+    
+    /* store 1st two directory entries */
+    if (sectnum == opts->rootSector)
+    {
+      memcpy(entry1, buffer, DIRENT_SIZE);
+      memcpy(entry2, buffer+DIRENT_SIZE, DIRENT_SIZE);
+    }
+    
+    /* loop through directory entries until kernel found or last entry found */
+    for (dir = (struct dirent *)buffer; dir < (struct dirent *)(buffer + SEC_SIZE); dir++)
+    {
+      if (*(dir->dir_name) == '\0') /* end of directy entries reached */
+        break;
 
+      lfn = (struct lfn_entry *)dir;
+      if (lfn->lfn_attrib == D_LFN)
+      {
+        printf("lfn id:%u\n", lfn->lfn_id & (~0x40));
+      }
+      else
+      {
+        /* swap directory entries if kernel/dos files found */
+        if (memcmp(dir->dir_name, kname,11)==0)
+        {
+          printf("Found kernel\n");
+          memcpy(buffer, dir, DIRENT_SIZE);
+          memcpy(dir, entry1, DIRENT_SIZE);
+          dirty++;
+        }
+        if (memcmp(dir->dir_name, dname,11)==0)
+        {
+          printf("Found dos\n");
+          memcpy(buffer+DIRENT_SIZE, dir, DIRENT_SIZE);
+          memcpy(dir, entry2, DIRENT_SIZE);
+          dirty++;
+        }
+        printFilename(dir->dir_name);
+      }
+    }
+
+    /* write sector if changed */
+    if (dirty)
+    {
+      if (MyAbsReadWrite(opts->dstDrive, 1, sectnum, buffer, 1) != 0)
+      {
+        printf("Error writing root directory, not updated!\n");
+        return;
+      }
+      dirty = 0;
+    }    
+
+    if (*(dir->dir_name) == '\0') /* end of directy entries reached */
+        break;
+  }
 }
 #endif
 
