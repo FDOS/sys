@@ -50,6 +50,9 @@ OEM_FILES
   /* Rx-DOS  */ { "RXDOSBIO.SYS", "RXDOS.SYS", /*0x70:*/0x0, 0, 1 },
   /* DRMK    */ { "DELLBIO.BIN", "DELLRMK.BIN", /*0x70:*/0x0, 0, 1 },
 #endif
+#ifdef METAKERN
+  /* METAKERN*/ { "METAKERN.SYS", "KERNEL.SYS", 0x60/*:0*/, 1, 0 },
+#endif
 #ifdef FREELDR
   /* ReactOS */ { "FREELDR.SYS", "FREELDR.INI", /*0x0800:*/0x0, 1, 0 },
 #if 0
@@ -83,9 +86,16 @@ OEM_FILES
 #define OEM_W9x    (MSG_BASE+5)  /* use PC-DOS compatible BS with MS names */
 #define OEM_RX     (MSG_BASE+6)  /* use PC-DOS compatible BS with Rx names */
 #define OEM_DRMK   (MSG_BASE+7)  /* use PC-DOS compatible BS with Dell names */
+#define OEM_META   (MSG_BASE+8)
+#else
+#define OEM_META   (MSG_BASE+3)  /* use FreeDOS boot sector for METAKERN */
+#endif
+#ifdef METAKERN
+#define OEM_FLDR   (OEM_META+1)  /* use FreeLoader - Reactos compatible mode */
+#else
+#define OEM_FLDR   (OEM_META+0)
 #endif
 #ifdef FREELDR
-#define OEM_FLDR   (MSG_BASE+8)  /* use FreeLoader - Reactos compatible mode */
 #if 0
 #define OEM_NLDR   (MSG_BASE+9)  /* use NTLoader - MS Windows NT 3,4,5 mode */
 #define OEM_NMGR   (MSG_BASE+10) /* use BootManager - MS Windows NT 6,7 mode */
@@ -110,6 +120,9 @@ CONST char * msgDOS[DOSFLAVORS] = {  /* order should match above items */
   "Win9x DOS compatibility mode\n",
   "RxDOS compatibility mode\n",
   "Dell Real Mode Kernel (DRMK) mode\n",
+#endif
+#ifdef METAKERN
+  "MetaKern\n",
 #endif
 #ifdef FREELDR
   "ReactOS FreeLdr\n"
@@ -242,6 +255,8 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
           else if (memicmp(argp, "DE", 2) == 0) /* DELL */
             opts->flavor = OEM_DRMK;
 #endif
+#ifdef METAKERN
+#endif
 #ifdef FREELDR
           else if (memicmp(argp, "FRL", 3) == 0)
             opts->flavor = OEM_FLDR;
@@ -266,10 +281,10 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
       }
 #ifdef USEBOOTMANAGER
       /* indicates compatibility mode, fs, filenames, and load segment to use */
-      else if (memicmp(argp, "BTMGR", 5) == 0)
+      else if (memicmp(argp, "BOOTMGR", 7) == 0)
       {
         char *msgBadBtMgr = "%s: unknown boot manager %s\n";
-        argp += 5;
+        argp += 7;
         if (!*argp)
             /* auto detect boot manager to add entry to */
             opts->addToBtMgr = USEBTMGR;
@@ -486,7 +501,7 @@ void initOptions(int argc, char *argv[], SYSOptions *opts)
       showHelpAndExit();
     }
     if (!opts->bsFile)
-      opts->bsFile = "FREEDOS.BSS";
+      opts->bsFile = "/FREEDOS.BSS";
   }
 #endif
   

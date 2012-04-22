@@ -10,7 +10,7 @@ DOS_FILES=diskio_d.c prf.c getenv.c talloc.c
 
 WIN_FILES=diskio_w.c
 
-SYS_C=sys.c usage.c initopts.c fdkrncfg.c putboot.c copy.c
+SYS_C=sys.c usage.c initopts.c fdkrncfg.c putboot.c copy.c bootmgr.c
 
 ########################################################################
 

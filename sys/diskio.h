@@ -35,6 +35,10 @@ int read(int fd, void *buf, unsigned count);
 int write(int fd, const void *buf, unsigned count);
 #define close _dos_close
 int unlink(const char *pathname);
+long lseek(int handle, long offset, int origin ); 
+#ifndef SEEK_END
+#define SEEK_END 2
+#endif
 #endif
 
 
@@ -52,6 +56,9 @@ int getDeviceParms(unsigned drive, FileSystem fs, unsigned char *buffer);
  */
 BOOL haveLBA(void);     /* return TRUE if we have LBA BIOS, FALSE otherwise */
 
+/* return canonical (full) name */
+void truename(char *dest, const char *src);
+
 #if defined __WATCOMC__ && defined __DOS__
 #pragma aux haveLBA =  \
       "mov ax, 0x4100"  /* IBM/MS Int 13h Extensions - installation check */ \
@@ -66,4 +73,25 @@ BOOL haveLBA(void);     /* return TRUE if we have LBA BIOS, FALSE otherwise */
 "quit:"                \
       modify [bx cx dx]   \
       value [ax];
+      
+#pragma aux lseek = \
+      "mov ah, 0x42" /* DOS set current file position */ \
+      "int 0x21"       \
+      "jnc ok"         \
+      "mov ax, -1"     \
+      "cwd"            \
+"ok:"                  \
+      parm [bx] [cx dx] [al] \
+      modify [ax bx cx dx] \
+      value [dx ax];
+
+/* return canonical (full) name */
+void truename(char *dest, const char *src);
+#pragma aux truename =  \
+      "push ds"         \
+      "pop es"          \
+      "mov ah,0x60"     \
+      "int 0x21"        \
+      parm [di] [si]    \
+      modify [ax di si es];
 #endif

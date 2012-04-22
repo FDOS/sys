@@ -87,7 +87,7 @@ int FDKrnConfigMain(int argc, char **argv);
 typedef enum {UNKNOWN=0, FAT12 = 12, FAT16 = 16, FAT32 = 32} FileSystem;
 
 /* Indicates boot managers to add to */
-typedef enum {NONE=0, USEBTMGR=1, SYSLINUX=2, FREELDR=3, NTLDR=4, GRUB=6, GRUB2=7} BtMgr;
+typedef enum {NONE=0, USEBTMGR=1, SYSLINUX=2, FREELDR=3, NTLDR=4, GRUB=5, GRUB2=6} BtMgr;
 
 /* FreeDOS sys, we default to our kernel and load segment, but
    if not found (or explicitly given) support OEM DOS variants
@@ -154,5 +154,8 @@ void dumpBS(SYSOptions *opts);
 
 /* copies file (path+filename specified by srcFile) to drive:\filename */
 BOOL copy(const BYTE *source, COUNT drive, const BYTE * filename);
+
+/* adds basic entry to boot manager configuration file */
+BOOL writeBootLoaderEntry(SYSOptions *opts);
 
 #endif /* _SYS_H_ */

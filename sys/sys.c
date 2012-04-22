@@ -83,6 +83,14 @@ int main(int argc, char **argv)
       exit(1);
     } /* copy shell */
   }
+  
+#ifdef USEBOOTMANAGER
+  if (opts.addToBtMgr != NONE)
+  {
+    if (!writeBootLoaderEntry(&opts))
+      printf("\n%s: failed to update boot manager\n", pgm);
+  }
+#endif
 
   printf("\nSystem transferred.\n");
   return 0;

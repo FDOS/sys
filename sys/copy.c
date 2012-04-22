@@ -112,12 +112,6 @@ long filelength(int __handle);
       modify [cx] \
       value [dx ax];
 
-void truename(char far *dest, const char *src);
-#pragma aux truename =  \
-      "mov ah,0x60"     \
-      "int 0x21"        \
-      parm [es di] [si];
-
 unsigned getextdrivespace(void far *drivename, void *buf, unsigned buf_size);
 #pragma aux getextdrivespace =  \
       "mov ax, 0x7303"    \

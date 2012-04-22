@@ -11,4 +11,4 @@
 /* include support for OEM MS/PC DOS 3.??-6.x */
 #define WITHOEMCOMPATBS
 /* include support to add entry to existing boot manager */
-//#define USEBOOTMANAGER
+#define USEBOOTMANAGER
