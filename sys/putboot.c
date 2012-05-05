@@ -647,7 +647,7 @@ void patch_bs(SYSOptions *opts, UBYTE newboot[])
     if (opts->kernel.stdbs)
     {
       /* this sets the segment we load the kernel to, default is 0x60:0 */
-      ((int *)newboot)[0x5c/sizeof(int)] = opts->kernel.loadaddr;
+      ((short *)newboot)[0x5c/sizeof(short)] = opts->kernel.loadaddr;
       bsBiosMovOff = 0x66;
     }
     else
@@ -655,9 +655,9 @@ void patch_bs(SYSOptions *opts, UBYTE newboot[])
       /* load segment hard coded to 0x70 in oem compatible boot sector, */
       /* this however changes the offset jumped to default 0x70:0       */
       if (opts->fs == FAT12)
-        ((int *)newboot)[0x11c/sizeof(int)] = opts->kernel.loadaddr;
+        ((short *)newboot)[0x11c/sizeof(short)] = opts->kernel.loadaddr;
       else
-        ((int *)newboot)[0x119/sizeof(int)] = opts->kernel.loadaddr;
+        ((short *)newboot)[0x119/sizeof(short)] = opts->kernel.loadaddr;
       bsBiosMovOff = 0x4F;
     }
   }
