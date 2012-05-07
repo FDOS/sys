@@ -129,7 +129,11 @@ int getDeviceParms(unsigned drive, FileSystem fs, unsigned char *buffer)
   char *drivename = "A:\\";
   drivename[0] = 'A' + drive;
   hnd = CreateFileA(drivename, 0, FILE_SHARE_READ|FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
-  if (hnd == INVALID_HANDLE_VALUE) return -1;
+  if (hnd == INVALID_HANDLE_VALUE) 
+  {
+    printf("Unable to get handle to drive %s (%i)\n", drivename, GetLastError());
+    return -1;
+  }
 
   result = DeviceIoControl(hnd, IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0, &dskGeom, sizeof(dskGeom), &result/*unused*/, NULL);
   if (result)
@@ -146,5 +150,6 @@ int getDeviceParms(unsigned drive, FileSystem fs, unsigned char *buffer)
     return 0;
   }
 
+  printf("Error obtaining drive %s geometry\n", drivename);
   return -1;    
 }
