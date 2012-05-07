@@ -127,7 +127,7 @@ int readConfigSettings(int kfile, char *kfilename, KernelConfig * cfg)
 
   /* check if config settings old UPX header and adjust */
   if (cfg->ConfigSize == 19)
-    cfg->ConfigSize = 14;  /* ignore 'nused87654321' */
+    cfg->ConfigSize = 6;  /* ignore 'nused87654321' */
 
   return 1;
 }
@@ -155,7 +155,7 @@ void displayConfigSettings(KernelConfig * cfg)
   /* print known options and current value - only if available */
 
   /* show kernel version if available, read only, no option to modify */
-  if (cfg->ConfigSize >= 20)
+  if (cfg->ConfigSize >= 12)
   {
     printf
         ("%s kernel %s (build %d.%d OEM:%02X)\n", 
@@ -166,6 +166,7 @@ void displayConfigSettings(KernelConfig * cfg)
         cfg->Version_OemID
         );
   }
+  printf("Config Size is %u\n", cfg->ConfigSize);
 
   if (cfg->ConfigSize >= 1)
   {
