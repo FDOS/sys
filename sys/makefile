@@ -41,16 +41,17 @@ oemfat16.h:	..\boot\oemfat16.bin bin2c.com
 ntfs.h:	..\boot\ntfs.bin bin2c.com
 		bin2c ..\boot\$*.bin $*.h $*
 
-..\bin\sys.com:	$(SYS_C) sys.h ..\hdr\*.h fat12com.h fat16com.h fat32chs.h fat32lba.h oemfat12.h oemfat16.h config.h
+..\bin\sys.com:	$(SYS_C) $(DOS_FILES) sys.h ..\hdr\*.h fat12com.h fat16com.h fat32chs.h fat32lba.h oemfat12.h oemfat16.h config.h
 		$(CL) $(CFLAGST) $(SYS_C) $(DOS_FILES)
 		copy sys.com ..\bin
 		del sys.com
 
-..\bin\sys.exe:	$(SYS_C) sys.h ..\hdr\*.h fat12com.h fat16com.h fat32chs.h fat32lba.h oemfat12.h oemfat16.h config.h
+..\bin\sys.exe:	$(SYS_C) $(WIN_FILES) $(DOS_FILES) sys.h ..\hdr\*.h fat12com.h fat16com.h fat32chs.h fat32lba.h oemfat12.h oemfat16.h config.h
 		$(CL) $(CFLAGSC) $(SYS_C) $(DOS_FILES)
 		ECHO $(CL) $(CFLAGSW) $(SYS_C) $(WIN_FILES)
+        upx --8086 --best --ultra-brute sys.exe
         ..\..\..\TOOLS\FIXHDR\fixstub sys.exe ..\bin\sysstub.exe
-		$(CLW) $(CFLAGSW) -D_WIN32 $(SYS_C) $(WIN_FILES)
+		$(CLW) $(CFLAGSW) -D_WIN32 $(SYS_C) $(WIN_FILES) -"OP STUB=..\bin\sysstub.exe"
 		copy sys.exe ..\bin
 		del sys.exe
 
@@ -60,4 +61,4 @@ clean:
 		-$(RM) *.bak *.cod *.crf *.err *.las *.lst *.map *.obj *.xrf
 
 clobber:	clean
-		-$(RM) bin2c.com ..\bin\sys.com fat*.h oem*.h status.me *.exe
+		-$(RM) bin2c.com ..\bin\sys.com ..\bin\sysstub.exe ..\bin\sys.exe fat*.h oem*.h status.me *.exe
