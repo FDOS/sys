@@ -392,6 +392,9 @@ void correct_bpb(FileSystem fs, unsigned drive, struct bootsectortype *oldboot, 
      bit 2 set if all sectors in track same size (should be set) (RBIL) */
   default_bpb_buffer[0] = 4;
 
+  if (verbose)
+    printf(valuesMsg, "Old", oldboot->bsSecPerTrack, oldboot->bsHeads, oldboot->bsHiddenSecs);
+
   /* don't change bpb for floppies, otherwise get default bpb (no changes on error) */
   if (drive < 2 || getDeviceParms(drive, fs, default_bpb_buffer) != 0)
       return;
@@ -403,9 +406,6 @@ void correct_bpb(FileSystem fs, unsigned drive, struct bootsectortype *oldboot, 
      sectors */
   if (default_bpb->bsHiddenSecs == 0)
     return;
-
-  if (verbose)
-    printf(valuesMsg, "Old", oldboot->bsSecPerTrack, oldboot->bsHeads, oldboot->bsHiddenSecs);
 
   oldboot->bsSecPerTrack = default_bpb->bsSecPerTrack;
   oldboot->bsHeads = default_bpb->bsHeads;
