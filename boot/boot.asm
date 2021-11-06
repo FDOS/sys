@@ -58,6 +58,14 @@
 
 ;%define ISFAT12         1
 ;%define ISFAT16         1
+;verify one and only one of ISFAT12 or ISFAT16 is defined
+%ifdef ISFAT12 
+ %ifdef ISFAT16
+  %error Must select one FS
+ %endif
+%elifndef ISFAT16
+  %error Must select one FS
+%endif
 
 
 segment .text
@@ -100,7 +108,16 @@ Entry:          jmp     short real_start
 
 ;-----------------------------------------------------------------------
 
-                times   0x3E-$+$$ db 0
+                times   36h - ($ - $$) db 0
+                ; The filesystem ID is used by lDOS's instsect (by ecm)
+                ;  by default to validate that the filesystem matches.
+%ifdef ISFAT12
+ %define FATFS "FAT12"
+%elifdef ISFAT16
+ %define FATFS "FAT16"
+%endif
+                db FATFS
+                times   3Eh - ($ - $$) db 32
 
 ; using bp-Entry+loadseg_xxx generates smaller code than using just
 ; loadseg_xxx, where bp is initialized to Entry, so bp-Entry equals 0
@@ -249,7 +266,7 @@ next_entry:     mov     cx, 11
                 cmp     byte [es:di], 0 ; if the first byte of the name is 0,
                 jnz     next_entry      ; there is no more files in the directory
 
-                jc      boot_error      ; fail if not found
+                jmp     boot_error      ; fail if not found
 ffDone:
                 push    ax              ; store first cluster number
 
@@ -355,18 +372,19 @@ load_next:      dec     ax                      ; cluster numbers start with 2
 
 ; shows text after the call to this function.
 
+show.do_show:
+                mov     ah, 0Eh                 ; show character
+                int     10h                     ; via "TTY" mode
 show:           pop     si
                 lodsb                           ; get character
                 push    si                      ; stack up potential return address
-                mov     ah,0x0E                 ; show character
-                int     0x10                    ; via "TTY" mode
-                cmp     al,'.'                  ; end of string?
-                jne     show                    ; until done
+                cmp     al, 0                   ; end of string?
+                jne     .do_show                ; until done
                 ret
 
 boot_error:     call    show
-;                db      "Error! Hit a key to reboot."
-                db      "Error!."
+;                db      "Error! Hit a key to reboot.",0
+                db      "Error!",0
 
                 xor     ah,ah
                 int     0x13                    ; reset floppy
@@ -391,7 +409,7 @@ readDisk:       push    si
                 mov     word [READADDR_OFF], bx
 
                 call    show
-                db      "."
+                db      ".",0
 read_next:
 
 ;******************** LBA_READ *******************************
@@ -403,6 +421,19 @@ read_next:
                 mov     dl, [drive]
 
                 ; NOTE: sys must be updated if location changes!!!
+%ifdef ISFAT12
+  %define LBA_TEST_OFFSET 179h
+%elifdef ISFAT16
+  %define LBA_TEST_OFFSET 176h
+%else
+  %define LBA_TEST_OFFSET 0
+                ; Just a placeholder, so the proper error message
+                ;  will be shown when assembling without either
+                ;  of the ISFATx defines.
+%endif
+%if ($ - Entry) != LBA_TEST_OFFSET
+    %error Must update constant offset (LBA_TEST_OFFSET) to test dl,dl here and in sys.c for FATFS
+%endif
                 test    dl,dl                   ; don't use LBA addressing on A:
                 jz      read_normal_BIOS        ; might be a (buggy)
                                                 ; CDROM-BOOT floppy emulation
